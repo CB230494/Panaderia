@@ -341,6 +341,16 @@ with tabs[2]:
 with tabs[3]:
     st.subheader("📤 Registro de Entradas y Salidas de Insumos")
 
+    # Diccionario de unidad legible
+    unidad_legible = {
+        "kg": "kilogramos",
+        "g": "gramos",
+        "l": "litros",
+        "ml": "mililitros",
+        "barra": "barras",
+        "unidad": "unidades"
+    }
+
     insumos = obtener_insumos()
     if not insumos:
         st.warning("⚠️ No hay insumos disponibles. Agrega primero desde la pestaña de Insumos.")
@@ -350,8 +360,9 @@ with tabs[3]:
         
         index = nombres_insumos.index(insumo_elegido)
         insumo_id, nombre, unidad, costo_unitario, cantidad_actual = insumos[index]
-        
-        st.markdown(f"**📦 Cantidad disponible:** {cantidad_actual} {unidad}")
+
+        unidad_visible = unidad_legible.get(unidad, unidad)
+        st.markdown(f"**📦 Cantidad disponible:** {cantidad_actual} {unidad_visible}")
 
         tipo_movimiento = st.radio("📌 Tipo de movimiento", ["Entrada", "Salida"])
         cantidad = st.number_input("📏 Cantidad a registrar", min_value=0.0, step=0.1)
