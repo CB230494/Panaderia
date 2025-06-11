@@ -206,6 +206,9 @@ with tabs[1]:
         st.info("ℹ️ No hay insumos registrados todavía.")
 from pathlib import Path
 
+from pathlib import Path
+from exportar_pdf import generar_pdf_receta
+
 # =============================
 # 📋 PESTAÑA DE RECETAS
 # =============================
@@ -277,15 +280,17 @@ with tabs[2]:
                     st.markdown(f"- {nombre_insumo} — {cantidad} {unidad} — ₡{costo_unitario:,.2f} c/u")
 
                 col1, col2 = st.columns(2)
+
                 with col1:
-                    from exportar_pdf import generar_pdf_receta
                     pdf_bytes = generar_pdf_receta(nombre, instrucciones, detalles, costo_total)
                     st.download_button(
                         label="📄 Descargar PDF",
                         data=pdf_bytes,
                         file_name=f"{nombre}.pdf",
-                        mime="application/pdf"
+                        mime="application/pdf",
+                        key=f"pdf_{receta_id}"
                     )
+
                 with col2:
                     eliminar_btn = st.button(f"🗑️ Eliminar receta", key=f"eliminar_{receta_id}")
                     if eliminar_btn:
@@ -296,4 +301,5 @@ with tabs[2]:
                         st.rerun()
     else:
         st.info("ℹ️ No hay recetas registradas todavía.")
+
 
