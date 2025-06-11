@@ -13,12 +13,12 @@ from database.bd_ingresar import (
     eliminar_insumo
 )
 
-
 st.set_page_config(page_title="Panadería Moderna", layout="wide")
 st.title("🥐 Sistema de Gestión - Panadería Moderna")
 
-# Crear tabla al cargar
+# Crear tablas al iniciar
 crear_tabla_productos()
+crear_tabla_insumos()
 
 # Tabs del menú superior
 tabs = st.tabs(["🧁 Productos", "📦 Insumos", "📋 Recetas", "📤 Entradas/Salidas", "💰 Ventas", "📊 Balance"])
@@ -57,15 +57,25 @@ with tabs[0]:
 
         # --- Edición o eliminación ---
         st.markdown("### ✏️ Editar o eliminar un producto")
-        seleccion = st.selectbox("🔽 Seleccionar producto por nombre", df["Nombre"])
-        seleccionado = df[df["Nombre"] == seleccion].iloc[0]
+
+        nombres_disponibles = [producto[1] for producto in productos]
+        seleccion = st.selectbox("🔽 Seleccionar producto por nombre", nombres_disponibles)
+
+        for producto in productos:
+            if producto[1] == seleccion:
+                id_producto = producto[0]
+                nombre_original = producto[1]
+                unidad_original = producto[2]
+                precio_original = producto[3]
+                costo_original = producto[4]
+                break
 
         with st.form("editar_producto"):
-            nuevo_nombre = st.text_input("📛 Nombre", value=seleccionado["Nombre"])
+            nuevo_nombre = st.text_input("🍥 Nombre", value=nombre_original)
             nueva_unidad = st.selectbox("📦 Unidad", ["unidad", "porción", "pieza", "queque", "paquete"],
-                                         index=["unidad", "porción", "pieza", "queque", "paquete"].index(seleccionado["Unidad"]))
-            nuevo_precio = st.number_input("💰 Precio de venta (₡)", value=float(seleccionado["Precio Venta"]), format="%.2f")
-            nuevo_costo = st.number_input("🧾 Costo de elaboración (₡)", value=float(seleccionado["Costo"]), format="%.2f")
+                                        index=["unidad", "porción", "pieza", "queque", "paquete"].index(unidad_original))
+            nuevo_precio = st.number_input("💰 Precio de venta (₡)", value=float(precio_original), format="%.2f")
+            nuevo_costo = st.number_input("🧾 Costo de elaboración (₡)", value=float(costo_original), format="%.2f")
 
             col1, col2 = st.columns(2)
             with col1:
@@ -74,11 +84,11 @@ with tabs[0]:
                 eliminar = st.form_submit_button("🗑️ Eliminar")
 
             if actualizar:
-                actualizar_producto(seleccionado["ID"], nuevo_nombre, nueva_unidad, nuevo_precio, nuevo_costo)
+                actualizar_producto(id_producto, nuevo_nombre, nueva_unidad, nuevo_precio, nuevo_costo)
                 st.success("✅ Producto actualizado correctamente.")
                 st.rerun()
             if eliminar:
-                eliminar_producto(seleccionado["ID"])
+                eliminar_producto(id_producto)
                 st.success("🗑️ Producto eliminado correctamente.")
                 st.rerun()
     else:
@@ -119,15 +129,25 @@ with tabs[1]:
 
         # --- Edición o eliminación ---
         st.markdown("### ✏️ Editar o eliminar un insumo")
-        seleccion_i = st.selectbox("🔽 Seleccionar insumo por nombre", df_i["Nombre"])
-        seleccionado_i = df_i[df_i["Nombre"] == seleccion_i].iloc[0]
+
+        nombres_insumos = [insumo[1] for insumo in insumos]
+        seleccion_i = st.selectbox("🔽 Seleccionar insumo por nombre", nombres_insumos)
+
+        for insumo in insumos:
+            if insumo[1] == seleccion_i:
+                id_insumo = insumo[0]
+                nombre_original = insumo[1]
+                unidad_original = insumo[2]
+                costo_original = insumo[3]
+                cantidad_original = insumo[4]
+                break
 
         with st.form("editar_insumo"):
-            nuevo_nombre_i = st.text_input("📛 Nombre", value=seleccionado_i["Nombre"])
+            nuevo_nombre_i = st.text_input("📛 Nombre", value=nombre_original)
             nueva_unidad_i = st.selectbox("📐 Unidad", ["kg", "g", "l", "ml", "barra", "unidad"],
-                                           index=["kg", "g", "l", "ml", "barra", "unidad"].index(seleccionado_i["Unidad"]))
-            nuevo_costo_i = st.number_input("💰 Costo unitario (₡)", value=float(seleccionado_i["Costo Unitario"]), format="%.2f")
-            nueva_cantidad_i = st.number_input("📥 Cantidad", value=float(seleccionado_i["Cantidad"]))
+                                           index=["kg", "g", "l", "ml", "barra", "unidad"].index(unidad_original))
+            nuevo_costo_i = st.number_input("💰 Costo unitario (₡)", value=float(costo_original), format="%.2f")
+            nueva_cantidad_i = st.number_input("📥 Cantidad", value=float(cantidad_original))
 
             col1, col2 = st.columns(2)
             with col1:
@@ -136,13 +156,12 @@ with tabs[1]:
                 eliminar_i = st.form_submit_button("🗑️ Eliminar")
 
             if actualizar_i:
-                actualizar_insumo(seleccionado_i["ID"], nuevo_nombre_i, nueva_unidad_i, nuevo_costo_i, nueva_cantidad_i)
+                actualizar_insumo(id_insumo, nuevo_nombre_i, nueva_unidad_i, nuevo_costo_i, nueva_cantidad_i)
                 st.success("✅ Insumo actualizado correctamente.")
                 st.rerun()
             if eliminar_i:
-                eliminar_insumo(seleccionado_i["ID"])
+                eliminar_insumo(id_insumo)
                 st.success("🗑️ Insumo eliminado correctamente.")
                 st.rerun()
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
-
