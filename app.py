@@ -261,8 +261,7 @@ with tabs[2]:
                 else:
                     st.warning("⚠️ Debes ingresar un nombre y al menos un insumo.")
 
-   from pathlib import Path
-from exportar_pdf import generar_pdf_receta
+
 
 # =============================
 # 📋 PESTAÑA DE RECETAS
