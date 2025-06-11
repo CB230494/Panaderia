@@ -459,5 +459,52 @@ with tabs[4]:
 
         st.markdown(f"**💵 Total ingresos:** ₡{total_ingresos:,.2f}")
         st.markdown(f"**📈 Total ganancias:** ₡{total_ganancias:,.2f}")
+# =============================
+# 📊 PESTAÑA DE BALANCE
+# =============================
+with tabs[5]:
+    st.subheader("📊 Balance General del Negocio")
+
+    # ==== Inventario de Insumos ====
+    insumos = obtener_insumos()
+    if insumos:
+        df_insumos = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Unitario", "Cantidad"])
+        df_insumos["Total (₡)"] = df_insumos["Costo Unitario"] * df_insumos["Cantidad"]
+        total_inventario = df_insumos["Total (₡)"].sum()
+
+        st.markdown("### 📦 Valor del inventario de insumos")
+        st.dataframe(df_insumos[["Nombre", "Unidad", "Cantidad", "Costo Unitario", "Total (₡)"]], use_container_width=True)
+        st.markdown(f"**🔹 Total inventario:** ₡{total_inventario:,.2f}")
+    else:
+        st.info("ℹ️ No hay insumos registrados.")
+
+    st.divider()
+
+    # ==== Resumen de Ventas ====
+    st.markdown("### 💰 Ventas registradas en esta sesión")
+
+    if "ventas" in st.session_state and st.session_state.ventas:
+        df_ventas = pd.DataFrame(st.session_state.ventas)
+        st.dataframe(df_ventas, use_container_width=True)
+
+        total_ingresos = df_ventas["Ingreso (₡)"].sum()
+        total_ganancia = df_ventas["Ganancia (₡)"].sum()
+        total_costos = df_ventas["Costo (₡)"].sum()
+
+        st.markdown(f"- **🟢 Ingresos:** ₡{total_ingresos:,.2f}")
+        st.markdown(f"- **🧾 Costos:** ₡{total_costos:,.2f}")
+        st.markdown(f"- **📈 Ganancia total:** ₡{total_ganancia:,.2f}")
+    else:
+        st.info("ℹ️ No hay ventas registradas en esta sesión.")
+
+    st.divider()
+
+    # ==== Comparativo Básico ====
+    if insumos and "ventas" in st.session_state and st.session_state.ventas:
+        st.markdown("### 📉 Comparativo resumen")
+        st.markdown(f"🔸 **Valor actual del inventario:** ₡{total_inventario:,.2f}")
+        st.markdown(f"🔸 **Ganancia generada (ventas - costos):** ₡{total_ganancia:,.2f}")
+        balance_total = total_ingresos - total_inventario
+        st.markdown(f"🔸 **Balance estimado (ingresos - inventario):** ₡{balance_total:,.2f}")
 
 
