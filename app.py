@@ -135,6 +135,19 @@ with tabs[1]:
 
     if insumos:
         df_i = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Unitario", "Cantidad"])
+
+        # Mostrar unidad con nombre legible
+        unidad_legible = {
+            "kg": "Kilogramo (kg)",
+            "g": "Gramo (g)",
+            "l": "Litro (l)",
+            "ml": "Mililitro (ml)",
+            "barra": "Barra",
+            "unidad": "Unidad"
+        }
+        df_i["Unidad"] = df_i["Unidad"].map(unidad_legible)
+
+        # Calcular total
         df_i["Total (₡)"] = df_i["Costo Unitario"] * df_i["Cantidad"]
         st.dataframe(df_i, use_container_width=True)
 
