@@ -26,8 +26,11 @@ from database.bd_ingresar import (
 
     # Entradas y salidas
     crear_tabla_entradas_salidas,
-    crear_tabla_ventas 
+
+    # Ventas
+    crear_tabla_ventas
 )
+
 
 
 
