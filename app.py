@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from pathlib import Path
-from exportar_pdf import generar_pdf_receta  # Asegúrate de tener este archivo en tu proyecto
+from exportar_pdf import generar_pdf_receta
 from database.bd_ingresar import (
     # Productos
     crear_tabla_productos,
@@ -24,25 +24,27 @@ from database.bd_ingresar import (
     obtener_detalle_receta,
     eliminar_receta,
 
-    # Entradas y salidas
+    # Entradas y Salidas
     crear_tabla_entradas_salidas,
+    registrar_movimiento,
+    obtener_movimientos,
 
     # Ventas
-    crear_tabla_ventas
+    crear_tabla_ventas,
+    registrar_venta,
+    obtener_ventas
 )
-
-
-
-
 
 st.set_page_config(page_title="Panadería Moderna", layout="wide")
 st.title("🥐 Sistema de Gestión - Panadería Moderna")
 
-# Crear tablas al iniciar
+# Crear todas las tablas necesarias
 crear_tabla_productos()
 crear_tabla_insumos()
+crear_tabla_recetas()
+crear_tabla_entradas_salidas()
+crear_tabla_ventas()
 
-# Tabs del menú superior
 tabs = st.tabs(["🧁 Productos", "📦 Insumos", "📋 Recetas", "📤 Entradas/Salidas", "💰 Ventas", "📊 Balance"])
 
 # =============================
@@ -51,37 +53,32 @@ tabs = st.tabs(["🧁 Productos", "📦 Insumos", "📋 Recetas", "📤 Entradas
 with tabs[0]:
     st.subheader("🧁 Gestión de Productos")
 
-    # --- Formulario para agregar producto ---
     with st.form("form_agregar_producto"):
         st.markdown("### ➕ Agregar nuevo producto")
         nombre = st.text_input("📛 Nombre del producto")
         unidad = st.selectbox("📦 Unidad", ["unidad", "porción", "pieza", "queque", "paquete"])
         precio_venta = st.number_input("💰 Precio de venta (₡)", min_value=0.0, format="%.2f")
         costo = st.number_input("🧾 Costo de elaboración (₡)", min_value=0.0, format="%.2f")
-        cantidad_inicial = st.number_input("📦 Cantidad inicial en stock", min_value=0.0)
+        stock = st.number_input("📦 Cantidad inicial en stock", min_value=0.0, format="%.2f")
         submitted = st.form_submit_button("🍞 Agregar")
 
         if submitted:
             if nombre and unidad:
-                agregar_producto(nombre, unidad, precio_venta, costo, cantidad_inicial)
+                agregar_producto(nombre, unidad, precio_venta, costo, stock)
                 st.success(f"✅ Producto '{nombre}' agregado correctamente.")
                 st.rerun()
             else:
                 st.warning("⚠️ Debes completar todos los campos.")
 
-    # --- Listado de productos ---
     st.markdown("### 📋 Lista de productos")
     productos = obtener_productos()
 
     if productos:
         df = pd.DataFrame(productos, columns=["ID", "Nombre", "Unidad", "Precio Venta", "Costo", "Stock"])
         df["Ganancia (₡)"] = df["Precio Venta"] - df["Costo"]
-        df["Alerta"] = df["Stock"].apply(lambda x: "🔴 Bajo stock" if x < 3 else "")
         st.dataframe(df, use_container_width=True)
 
-        # --- Edición o eliminación ---
         st.markdown("### ✏️ Editar o eliminar un producto")
-
         nombres_disponibles = [producto[1] for producto in productos]
         seleccion = st.selectbox("🔽 Seleccionar producto por nombre", nombres_disponibles)
 
@@ -101,7 +98,7 @@ with tabs[0]:
                                         index=["unidad", "porción", "pieza", "queque", "paquete"].index(unidad_original))
             nuevo_precio = st.number_input("💰 Precio de venta (₡)", value=float(precio_original), format="%.2f")
             nuevo_costo = st.number_input("🧾 Costo de elaboración (₡)", value=float(costo_original), format="%.2f")
-            nuevo_stock = st.number_input("📦 Cantidad en stock", value=float(stock_original), min_value=0.0)
+            nuevo_stock = st.number_input("📦 Cantidad en stock", value=float(stock_original), format="%.2f")
 
             col1, col2 = st.columns(2)
             with col1:
@@ -119,357 +116,311 @@ with tabs[0]:
                 st.rerun()
     else:
         st.info("ℹ️ No hay productos registrados todavía.")
-
 # =============================
-# 🧂 PESTAÑA DE INSUMOS
+# 📦 PESTAÑA DE INSUMOS
 # =============================
 with tabs[1]:
-    st.subheader("🧂 Gestión de Insumos")
-    crear_tabla_insumos()
+    st.subheader("📦 Gestión de Insumos")
 
-    with st.form("form_insumo"):
+    unidades_dict = {
+        "Kilogramo (kg)": "kg",
+        "Gramo (g)": "g",
+        "Litro (l)": "l",
+        "Mililitro (ml)": "ml",
+        "Barra": "barra",
+        "Unidad": "unidad"
+    }
+
+    with st.form("form_agregar_insumo"):
         st.markdown("### ➕ Agregar nuevo insumo")
-        nombre = st.text_input("Nombre del insumo")
-        unidad = st.selectbox("Unidad de medida", ["Gramos", "Kilogramos", "Mililitros", "Litros", "Unidades"])
-        cantidad = st.number_input("Cantidad inicial", min_value=0.0, step=0.1)
-        costo_unitario = st.number_input("Costo por unidad (₡)", min_value=0.0, step=0.1)
+        nombre_i = st.text_input("📛 Nombre del insumo")
+        unidad_i_visible = st.selectbox("📐 Unidad", list(unidades_dict.keys()))
+        unidad_i = unidades_dict[unidad_i_visible]
+        costo_unitario = st.number_input("💰 Costo unitario (₡)", min_value=0.0, format="%.2f")
+        cantidad = st.number_input("📥 Cantidad inicial", min_value=0.0)
+        submitted_i = st.form_submit_button("📦 Agregar")
 
-        submitted = st.form_submit_button("💾 Agregar insumo")
-
-        if submitted:
-            if nombre and unidad and cantidad >= 0 and costo_unitario >= 0:
-                agregar_insumo(nombre, unidad, cantidad, costo_unitario)
-                st.success(f"✅ Insumo '{nombre}' agregado correctamente.")
+        if submitted_i:
+            if nombre_i and unidad_i:
+                agregar_insumo(nombre_i, unidad_i, costo_unitario, cantidad)
+                st.success(f"✅ Insumo '{nombre_i}' agregado correctamente.")
                 st.rerun()
             else:
-                st.warning("⚠️ Todos los campos deben estar completos y válidos.")
+                st.warning("⚠️ Debes completar todos los campos.")
 
-    st.markdown("### 📋 Insumos registrados")
+    st.markdown("### 📋 Lista de insumos")
     insumos = obtener_insumos()
 
     if insumos:
+        df_i = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Unitario", "Cantidad"])
+        unidad_legible = {v: k for k, v in unidades_dict.items()}
+        df_i["Unidad"] = df_i["Unidad"].map(unidad_legible)
+        df_i["Total (₡)"] = df_i["Costo Unitario"] * df_i["Cantidad"]
+
+        st.dataframe(df_i, use_container_width=True)
+
+        bajos = df_i[df_i["Cantidad"] < 3]
+        if not bajos.empty:
+            st.warning("⚠️ Insumos con stock bajo (menos de 3):")
+            st.dataframe(bajos[["Nombre", "Cantidad", "Unidad"]], use_container_width=True)
+
+        st.markdown("### ✏️ Editar o eliminar un insumo")
+        nombres_insumos = [insumo[1] for insumo in insumos]
+        seleccion_i = st.selectbox("🔽 Seleccionar insumo por nombre", nombres_insumos)
+
         for insumo in insumos:
-            insumo_id, nombre, unidad, cantidad, costo = insumo
-            with st.expander(f"🔹 {nombre} — {cantidad} {unidad} — ₡{costo:,.2f} c/u"):
-                nuevo_nombre = st.text_input("Editar nombre", value=nombre, key=f"nombre_{insumo_id}")
-                nueva_unidad = st.selectbox("Editar unidad", ["Gramos", "Kilogramos", "Mililitros", "Litros", "Unidades"], index=["Gramos", "Kilogramos", "Mililitros", "Litros", "Unidades"].index(unidad), key=f"unidad_{insumo_id}")
-                nueva_cantidad = st.number_input("Editar cantidad", value=float(cantidad), min_value=0.0, step=0.1, key=f"cantidad_{insumo_id}")
-                nuevo_costo = st.number_input("Editar costo unitario (₡)", value=float(costo), min_value=0.0, step=0.1, key=f"costo_{insumo_id}")
+            if insumo[1] == seleccion_i:
+                id_insumo = insumo[0]
+                nombre_original = insumo[1]
+                unidad_original = insumo[2]
+                costo_original = insumo[3]
+                cantidad_original = insumo[4]
+                break
 
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("💾 Actualizar", key=f"actualizar_{insumo_id}"):
-                        actualizar_insumo(insumo_id, nuevo_nombre, nueva_unidad, nueva_cantidad, nuevo_costo)
-                        st.success("✅ Insumo actualizado.")
-                        st.rerun()
-                with col2:
-                    if st.button("🗑️ Eliminar", key=f"eliminar_{insumo_id}"):
-                        eliminar_insumo(insumo_id)
-                        st.success("🗑️ Insumo eliminado.")
-                        st.rerun()
+        unidad_visible_original = [k for k, v in unidades_dict.items() if v == unidad_original][0]
+
+        with st.form("form_editar_insumo"):
+            nuevo_nombre_i = st.text_input("📛 Nombre", value=nombre_original)
+            nueva_unidad_visible = st.selectbox("📐 Unidad", list(unidades_dict.keys()),
+                                                index=list(unidades_dict.keys()).index(unidad_visible_original))
+            nueva_unidad = unidades_dict[nueva_unidad_visible]
+            nuevo_costo_i = st.number_input("💰 Costo unitario (₡)", value=float(costo_original), format="%.2f")
+            nueva_cantidad_i = st.number_input("📥 Cantidad", value=float(cantidad_original))
+
+            col1, col2 = st.columns(2)
+            with col1:
+                actualizar_i = st.form_submit_button("✅ Actualizar")
+            with col2:
+                eliminar_i = st.form_submit_button("🗑️ Eliminar")
+
+            if actualizar_i:
+                actualizar_insumo(id_insumo, nuevo_nombre_i, nueva_unidad, nuevo_costo_i, nueva_cantidad_i)
+                st.success("✅ Insumo actualizado correctamente.")
+                st.rerun()
+            if eliminar_i:
+                eliminar_insumo(id_insumo)
+                st.success("🗑️ Insumo eliminado correctamente.")
+                st.rerun()
     else:
-        st.info("ℹ️ No hay insumos registrados aún.")
-
+        st.info("ℹ️ No hay insumos registrados todavía.")
 # =============================
-# 📋 PESTAÑA DE RECETAS
+# 🧁 PESTAÑA DE RECETAS
 # =============================
 with tabs[2]:
-    st.subheader("📋 Gestión de Recetas")
-    crear_tabla_recetas()
+    st.subheader("🧁 Gestión de Recetas")
 
-    with st.form("form_nueva_receta"):
-        st.markdown("### ➕ Crear nueva receta")
-
-        nombre_receta = st.text_input("📛 Nombre de la receta")
-        instrucciones = st.text_area("📖 Instrucciones de preparación")
-        imagen_receta = st.file_uploader("📷 Foto del producto final (opcional)", type=["png", "jpg", "jpeg"])
-
-        insumos = obtener_insumos()
-        if not insumos:
-            st.warning("⚠️ No hay insumos registrados. Agrega insumos primero.")
-        else:
-            st.markdown("### 🧺 Seleccionar ingredientes:")
-            insumo_seleccionado = []
-            for insumo in insumos:
-                insumo_id, nombre, unidad, _, _ = insumo
-                cantidad = st.number_input(f"{nombre} ({unidad})", min_value=0.0, step=0.1, key=f"nuevo_{insumo_id}")
-                if cantidad > 0:
-                    insumo_seleccionado.append((insumo_id, cantidad))
-
-            submitted_receta = st.form_submit_button("🍽️ Guardar receta")
-
-            if submitted_receta:
-                if nombre_receta and insumo_seleccionado:
-                    agregar_receta(nombre_receta, instrucciones, insumo_seleccionado)
-                    if imagen_receta:
-                        carpeta_imagenes = Path("imagenes_recetas")
-                        carpeta_imagenes.mkdir(exist_ok=True)
-                        nombre_archivo = f"{nombre_receta.replace(' ', '_')}.jpg"
-                        with open(carpeta_imagenes / nombre_archivo, "wb") as f:
-                            f.write(imagen_receta.read())
-                    st.success(f"✅ Receta '{nombre_receta}' guardada correctamente.")
-                    st.rerun()
-                else:
-                    st.warning("⚠️ Debes ingresar un nombre y al menos un insumo.")
-
-    st.markdown("### 📋 Recetas registradas")
+    insumos_disponibles = obtener_insumos()
     recetas = obtener_recetas()
 
+    # Mostrar recetas existentes
     if recetas:
+        st.markdown("### 📋 Recetas registradas")
         for receta in recetas:
-            receta_id, nombre, instrucciones = receta
-            detalles = obtener_detalle_receta(receta_id)
-            costo_total = sum(cant * costo for _, cant, _, costo in detalles)
-
-            with st.expander(f"🍰 {nombre} - Costo total: ₡{costo_total:,.2f}"):
-                ruta_img = Path("imagenes_recetas") / f"{nombre.replace(' ', '_')}.jpg"
-                if ruta_img.exists():
-                    st.image(str(ruta_img), caption=f"📷 {nombre}", width=300)
-
-                st.markdown(f"**📝 Instrucciones:** {instrucciones or 'Sin instrucciones.'}")
-                st.markdown("**🧾 Ingredientes:**")
-                for nombre_insumo, cantidad, unidad, costo_unitario in detalles:
-                    st.markdown(f"- {nombre_insumo} — {cantidad} {unidad} — ₡{costo_unitario:,.2f} c/u")
-
-                col1, col2, col3 = st.columns(3)
-
-                with col1:
-                    pdf_bytes = generar_pdf_receta(nombre, instrucciones, detalles, costo_total)
+            st.markdown(f"**📌 {receta[1]}**")
+            st.markdown(f"📝 Instrucciones: {receta[2]}")
+            detalles = obtener_detalle_receta(receta[0])
+            total_receta = 0
+            for insumo in detalles:
+                nombre, cantidad, unidad, costo_unitario = insumo
+                subtotal = cantidad * costo_unitario
+                total_receta += subtotal
+                st.markdown(f"- {nombre}: {cantidad} {unidad} (₡{costo_unitario:.2f} c/u) = ₡{subtotal:.2f}")
+            st.markdown(f"**💵 Costo total estimado: ₡{total_receta:.2f}**")
+            col_r1, col_r2 = st.columns(2)
+            with col_r1:
+                if st.button(f"🗑️ Eliminar '{receta[1]}'", key=f"del_{receta[0]}"):
+                    eliminar_receta(receta[0])
+                    st.success(f"🗑️ Receta '{receta[1]}' eliminada.")
+                    st.rerun()
+            with col_r2:
+                if st.button(f"📄 Generar PDF '{receta[1]}'", key=f"pdf_{receta[0]}"):
+                    detalles = obtener_detalle_receta(receta[0])
+                    pdf_data = generar_pdf_receta(receta[1], receta[2], detalles)
                     st.download_button(
-                        label="📄 Descargar PDF",
-                        data=pdf_bytes,
-                        file_name=f"{nombre}.pdf",
-                        mime="application/pdf",
-                        key=f"pdf_{receta_id}"
+                        label="⬇️ Descargar PDF",
+                        data=pdf_data,
+                        file_name=f"{receta[1]}.pdf",
+                        mime="application/pdf"
                     )
-
-                with col2:
-                    eliminar_btn = st.button(f"🗑️ Eliminar receta", key=f"eliminar_{receta_id}")
-                    if eliminar_btn:
-                        eliminar_receta(receta_id)
-                        if ruta_img.exists():
-                            ruta_img.unlink()
-                        st.success(f"🗑️ Receta '{nombre}' eliminada.")
-                        st.rerun()
-
-                with col3:
-                    if st.button("✏️ Editar receta", key=f"editar_{receta_id}"):
-                        st.session_state[f"editando_{receta_id}"] = True
-
-                if st.session_state.get(f"editando_{receta_id}", False):
-                    with st.form(f"form_edicion_{receta_id}"):
-                        nuevo_nombre = st.text_input("📛 Nuevo nombre", value=nombre, key=f"nombre_{receta_id}")
-                        nuevas_instrucciones = st.text_area("📖 Nuevas instrucciones", value=instrucciones or "", key=f"inst_{receta_id}")
-                        nueva_imagen = st.file_uploader("📷 Nueva imagen (opcional)", type=["jpg", "jpeg", "png"], key=f"img_{receta_id}")
-
-                        nuevos_insumos = []
-                        insumos = obtener_insumos()
-                        for insumo in insumos:
-                            insumo_id, insumo_nombre, unidad, _, _ = insumo
-                            cantidad_actual = next((c for n, c, u, _ in detalles if n == insumo_nombre), 0.0)
-                            cantidad = st.number_input(
-                                f"{insumo_nombre} ({unidad})",
-                                value=float(cantidad_actual),
-                                min_value=0.0,
-                                step=0.1,
-                                key=f"insumo_edit_{receta_id}_{insumo_id}"
-                            )
-                            if cantidad > 0:
-                                nuevos_insumos.append((insumo_id, cantidad))
-
-                        guardar = st.form_submit_button("💾 Guardar cambios")
-
-                        if guardar:
-                            eliminar_receta(receta_id)
-                            agregar_receta(nuevo_nombre, nuevas_instrucciones, nuevos_insumos)
-
-                            carpeta = Path("imagenes_recetas")
-                            viejo = carpeta / f"{nombre.replace(' ', '_')}.jpg"
-                            nuevo = carpeta / f"{nuevo_nombre.replace(' ', '_')}.jpg"
-                            if nueva_imagen:
-                                with open(nuevo, "wb") as f:
-                                    f.write(nueva_imagen.read())
-                            elif viejo.exists() and nombre != nuevo_nombre:
-                                viejo.rename(nuevo)
-
-                            st.success("✅ Receta actualizada.")
-                            st.session_state[f"editando_{receta_id}"] = False
-                            st.rerun()
     else:
         st.info("ℹ️ No hay recetas registradas todavía.")
 
+    st.markdown("---")
+    st.markdown("### ➕ Crear nueva receta")
 
+    with st.form("form_receta"):
+        nombre_receta = st.text_input("📛 Nombre de la receta")
+        instrucciones = st.text_area("📝 Instrucciones")
+
+        seleccionados = []
+        st.markdown("📦 Selecciona insumos y cantidades:")
+        for insumo in insumos_disponibles:
+            cantidad = st.number_input(
+                f"{insumo[1]} ({insumo[2]}) - Stock: {insumo[4]}",
+                min_value=0.0, step=0.1, key=f"cantidad_{insumo[0]}"
+            )
+            if cantidad > 0:
+                seleccionados.append((insumo[0], cantidad))
+
+        imagen = st.file_uploader("📸 Foto del producto final (opcional)", type=["png", "jpg", "jpeg"])
+
+        submitted = st.form_submit_button("🧁 Guardar receta")
+        if submitted:
+            if nombre_receta and seleccionados:
+                agregar_receta(nombre_receta, instrucciones, seleccionados)
+                st.success(f"✅ Receta '{nombre_receta}' guardada correctamente.")
+                st.rerun()
+            else:
+                st.warning("⚠️ Debes ingresar un nombre y al menos un insumo.")
 # =============================
-# 📤 PESTAÑA DE ENTRADAS/SALIDAS
+# 📦 PESTAÑA DE ENTRADAS / SALIDAS
 # =============================
 with tabs[3]:
-    st.subheader("📤 Control de Entradas y Salidas de Insumos")
+    st.subheader("📦 Control de Entradas y Salidas de Insumos")
     crear_tabla_entradas_salidas()
+
     insumos = obtener_insumos()
 
     if not insumos:
-        st.warning("⚠️ No hay insumos registrados. Agrega insumos primero.")
+        st.warning("⚠️ No hay insumos registrados.")
     else:
         with st.form("form_movimiento"):
-            st.markdown("### ➕ Registrar entrada o salida")
-            insumo_opciones = {f"{i[1]} ({i[2]})": i[0] for i in insumos}
-            insumo_seleccionado = st.selectbox("Seleccionar insumo", list(insumo_opciones.keys()))
-            tipo = st.radio("Tipo de movimiento", ["Entrada", "Salida"], horizontal=True)
-            cantidad = st.number_input("Cantidad", min_value=0.01, step=0.1)
-            motivo = st.text_input("Motivo del movimiento")
+            st.markdown("### ➕ Registrar Movimiento de Insumo")
 
-            submitted = st.form_submit_button("💾 Registrar movimiento")
+            insumo_dict = {f"{i[1]} ({i[2]}) - Stock: {i[4]}": i[0] for i in insumos}
+            insumo_nombre = st.selectbox("📦 Selecciona el insumo", list(insumo_dict.keys()))
+            insumo_id = insumo_dict[insumo_nombre]
 
-            if submitted:
-                insumo_id = insumo_opciones[insumo_seleccionado]
+            tipo = st.selectbox("🔁 Tipo de movimiento", ["Entrada", "Salida", "Salida por daño"])
+            cantidad = st.number_input("🔢 Cantidad", min_value=0.1, step=0.1)
+            motivo = ""
+            if tipo != "Entrada":
+                motivo = st.text_input("✍️ Motivo de la salida")
+
+            submit = st.form_submit_button("✅ Registrar movimiento")
+            if submit:
                 registrar_movimiento(insumo_id, tipo, cantidad, motivo)
-                st.success(f"✅ {tipo} registrada correctamente.")
+                st.success("✅ Movimiento registrado correctamente.")
                 st.rerun()
 
-        st.markdown("### 📋 Historial de movimientos")
-        movimientos = obtener_movimientos()
+    # Mostrar historial
+    st.markdown("---")
+    st.markdown("### 🕓 Historial de movimientos")
+    historial = obtener_historial_movimientos()
 
-        if movimientos:
-            df = pd.DataFrame(movimientos, columns=["ID", "Nombre", "Unidad", "Tipo", "Cantidad", "Motivo", "FechaHora"])
-            df["FechaHora"] = pd.to_datetime(df["FechaHora"]).dt.strftime("%Y-%m-%d %H:%M:%S")
-
-            # Mostrar con nombres de unidades legibles
-            unidad_legible = {
-                "Gramos": "g",
-                "Kilogramos": "kg",
-                "Mililitros": "ml",
-                "Litros": "l",
-                "Unidades": "unidad"
-            }
-            df["Unidad"] = df["Unidad"].map(unidad_legible).fillna(df["Unidad"])
-
-            st.dataframe(df.sort_values("FechaHora", ascending=False), use_container_width=True)
-        else:
-            st.info("ℹ️ No hay movimientos registrados aún.")
-
+    if historial.empty:
+        st.info("ℹ️ No hay movimientos registrados.")
+    else:
+        st.dataframe(historial)
 # =============================
 # 💰 PESTAÑA DE VENTAS
 # =============================
 with tabs[4]:
     st.subheader("💰 Registro de Ventas")
-    productos = obtener_productos()
     crear_tabla_ventas()
 
+    productos = obtener_productos()
+
     if not productos:
-        st.warning("⚠️ No hay productos registrados. Agrega productos primero.")
+        st.warning("⚠️ No hay productos registrados.")
     else:
         with st.form("form_venta"):
-            st.markdown("### ➕ Registrar venta")
-            producto_opciones = {
-                f"{p[1]} (Disponibles: {int(p[5])}) - ₡{p[3]:,.2f}": (p[0], p[3], p[5])
-                for p in productos
-            }
-            seleccion = st.selectbox("Seleccionar producto", list(producto_opciones.keys()))
-            cantidad_vendida = st.number_input("Cantidad vendida", min_value=1, step=1)
+            st.markdown("### ➕ Registrar nueva venta")
 
-            submitted_venta = st.form_submit_button("💾 Registrar venta")
+            producto_dict = {f"{p[1]} ({p[2]}) - Stock: {p[5]}": p[0] for p in productos}
+            producto_nombre = st.selectbox("🧁 Selecciona el producto", list(producto_dict.keys()))
+            producto_id = producto_dict[producto_nombre]
 
-            if submitted_venta:
-                producto_id, precio_unitario, stock_disponible = producto_opciones[seleccion]
+            cantidad = st.number_input("🔢 Cantidad vendida", min_value=1, step=1)
+            submit = st.form_submit_button("✅ Registrar venta")
 
-                if cantidad_vendida > stock_disponible:
-                    st.error(f"❌ No hay suficiente stock disponible. Solo hay {int(stock_disponible)} unidades.")
-                else:
-                    registrar_venta(producto_id, cantidad_vendida, precio_unitario)
-                    actualizar_stock_producto(producto_id, stock_disponible - cantidad_vendida)
+            if submit:
+                producto = [p for p in productos if p[0] == producto_id][0]
+                stock_disponible = producto[5]
+                precio_venta = producto[3]
+
+                if cantidad <= stock_disponible:
+                    registrar_venta(producto_id, cantidad, precio_venta)
                     st.success("✅ Venta registrada correctamente.")
                     st.rerun()
+                else:
+                    st.error(f"❌ No hay suficiente stock. Solo hay {stock_disponible} unidades disponibles.")
 
-        st.markdown("### 📋 Historial de ventas")
-        ventas = obtener_ventas()
+    # Mostrar historial
+    st.markdown("---")
+    st.markdown("### 🧾 Historial de ventas")
+    ventas = obtener_historial_ventas()
 
-        if ventas:
-            df = pd.DataFrame(ventas, columns=["ID", "Nombre", "Cantidad", "Precio Unitario", "FechaHora"])
-            df["Total (₡)"] = df["Cantidad"] * df["Precio Unitario"]
-            df["FechaHora"] = pd.to_datetime(df["FechaHora"]).dt.strftime("%Y-%m-%d %H:%M:%S")
-            st.dataframe(df.sort_values("FechaHora", ascending=False), use_container_width=True)
-        else:
-            st.info("ℹ️ No hay ventas registradas todavía.")
-
+    if ventas.empty:
+        st.info("ℹ️ No hay ventas registradas.")
+    else:
+        st.dataframe(ventas)
 # =============================
 # 📊 PESTAÑA DE BALANCE
 # =============================
-from exportar_pdf import generar_pdf_balance
-from io import BytesIO
-
 with tabs[5]:
-    st.subheader("📊 Balance General del Negocio")
+    st.subheader("📊 Balance financiero")
+    crear_tabla_ventas()
+    crear_tabla_productos()
 
-    # ==== Inventario de Insumos ====
-    insumos = obtener_insumos()
-    total_inventario = 0
-    if insumos:
-        df_insumos = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Unitario", "Cantidad"])
-        df_insumos["Total (CRC)"] = df_insumos["Costo Unitario"] * df_insumos["Cantidad"]
-        total_inventario = df_insumos["Total (CRC)"].sum()
+    productos = obtener_productos()
+    ventas = obtener_historial_ventas()
 
-        unidad_legible = {
-            "kg": "kilogramos",
-            "g": "gramos",
-            "l": "litros",
-            "ml": "mililitros",
-            "barra": "barras",
-            "unidad": "unidades"
-        }
-        df_insumos["Unidad"] = df_insumos["Unidad"].map(unidad_legible)
-
-        st.markdown("### 📦 Valor del inventario de insumos")
-        st.dataframe(df_insumos[["Nombre", "Unidad", "Cantidad", "Costo Unitario", "Total (CRC)"]], use_container_width=True)
-        st.markdown(f"**🔹 Total inventario:** CRC {total_inventario:,.2f}")
+    if not productos or ventas.empty:
+        st.info("ℹ️ No hay suficientes datos para generar un balance.")
     else:
-        st.info("ℹ️ No hay insumos registrados.")
+        total_ventas = 0
+        total_costos = 0
+        balance_data = []
 
-    st.divider()
+        for index, row in ventas.iterrows():
+            producto_id = row["Producto ID"]
+            cantidad = row["Cantidad"]
+            precio_unitario = row["Precio Unitario"]
+            fecha = row["Fecha"]
 
-    # ==== Resumen de Ventas ====
-    st.markdown("### 💰 Ventas registradas en esta sesión")
+            producto = next((p for p in productos if p[0] == producto_id), None)
+            if producto:
+                nombre = producto[1]
+                costo_unitario = producto[4]
+                unidad = producto[2]
+                total_precio = cantidad * precio_unitario
+                total_costo = cantidad * costo_unitario
+                ganancia = total_precio - total_costo
 
-    total_ingresos = 0
-    total_ganancia = 0
-    total_costos = 0
-    if "ventas" in st.session_state and st.session_state.ventas:
-        df_ventas = pd.DataFrame(st.session_state.ventas)
-        st.dataframe(df_ventas, use_container_width=True)
+                total_ventas += total_precio
+                total_costos += total_costo
 
-        total_ingresos = df_ventas["Ingreso (₡)"].sum()
-        total_ganancia = df_ventas["Ganancia (₡)"].sum()
-        total_costos = df_ventas["Costo (₡)"].sum()
+                balance_data.append({
+                    "Fecha": fecha,
+                    "Producto": nombre,
+                    "Unidad": unidad,
+                    "Cantidad": cantidad,
+                    "Precio Total": total_precio,
+                    "Costo Total": total_costo,
+                    "Ganancia": ganancia
+                })
 
-        st.markdown(f"- **🟢 Ingresos:** CRC {total_ingresos:,.2f}")
-        st.markdown(f"- **🧾 Costos:** CRC {total_costos:,.2f}")
-        st.markdown(f"- **📈 Ganancia total:** CRC {total_ganancia:,.2f}")
-    else:
-        st.info("ℹ️ No hay ventas registradas en esta sesión.")
+        df_balance = pd.DataFrame(balance_data)
 
-    st.divider()
+        st.dataframe(df_balance)
 
-    # ==== Comparativo Básico ====
-    if insumos and "ventas" in st.session_state and st.session_state.ventas:
-        st.markdown("### 📉 Comparativo resumen")
-        st.markdown(f"🔸 **Valor actual del inventario:** CRC {total_inventario:,.2f}")
-        st.markdown(f"🔸 **Ganancia generada (ventas - costos):** CRC {total_ganancia:,.2f}")
-        balance_total = total_ingresos - total_inventario
-        st.markdown(f"🔸 **Balance estimado (ingresos - inventario):** CRC {balance_total:,.2f}")
+        st.markdown(f"### 💵 Total ventas: ₡{total_ventas:,.2f}")
+        st.markdown(f"### 💸 Total costos: ₡{total_costos:,.2f}")
+        st.markdown(f"### 📈 Ganancia neta: ₡{total_ventas - total_costos:,.2f}")
 
-        # Botón para exportar PDF
-        if st.button("📄 Generar PDF del balance"):
-            pdf = generar_pdf_balance(
-                total_inventario,
-                total_ingresos,
-                total_costos,
-                total_ganancia,
-                balance_total
-            )
-            st.download_button(
-                label="⬇️ Descargar PDF",
-                data=pdf,
-                file_name="balance_financiero.pdf",
-                mime="application/pdf"
-            )
+        # Botón para exportar a PDF
+        st.markdown("---")
+        st.markdown("### 📄 Exportar a PDF")
+        from exportar_pdf import generar_pdf_balance
+
+        pdf_bytes = generar_pdf_balance(df_balance, total_ventas, total_costos)
+        st.download_button(
+            label="📥 Descargar Balance en PDF",
+            data=pdf_bytes,
+            file_name="balance_financiero.pdf",
+            mime="application/pdf"
+        )
+
 
 
