@@ -3,25 +3,31 @@ import pandas as pd
 from pathlib import Path
 from exportar_pdf import generar_pdf_receta  # Asegúrate de tener este archivo en tu proyecto
 from database.bd_ingresar import (
+    # Productos
     crear_tabla_productos,
     agregar_producto,
     obtener_productos,
     actualizar_producto,
     eliminar_producto,
+
+    # Insumos
     crear_tabla_insumos,
     agregar_insumo,
     obtener_insumos,
     actualizar_insumo,
     eliminar_insumo,
+
+    # Recetas
     crear_tabla_recetas,
     agregar_receta,
     obtener_recetas,
     obtener_detalle_receta,
     eliminar_receta,
-    crear_tabla_entradas_salidas,
-    registrar_movimiento_entrada_salida,
-    obtener_movimientos_entrada_salida
+
+    # Entradas y salidas
+    crear_tabla_entradas_salidas
 )
+
 
 
 
