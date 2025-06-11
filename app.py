@@ -25,7 +25,8 @@ from database.bd_ingresar import (
     eliminar_receta,
 
     # Entradas y salidas
-    crear_tabla_entradas_salidas
+    crear_tabla_entradas_salidas,
+    crear_tabla_ventas 
 )
 
 
