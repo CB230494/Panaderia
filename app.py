@@ -2,17 +2,28 @@ import streamlit as st
 import pandas as pd
 from exportar_pdf import generar_pdf_receta
 from database.bd_ingresar import (
+    # Productos
     crear_tabla_productos,
     agregar_producto,
     obtener_productos,
     actualizar_producto,
     eliminar_producto,
+
+    # Insumos
     crear_tabla_insumos,
     agregar_insumo,
     obtener_insumos,
     actualizar_insumo,
-    eliminar_insumo
+    eliminar_insumo,
+
+    # Recetas
+    crear_tabla_recetas,
+    agregar_receta,
+    obtener_recetas,
+    obtener_detalle_receta,
+    eliminar_receta
 )
+
 
 st.set_page_config(page_title="Panadería Moderna", layout="wide")
 st.title("🥐 Sistema de Gestión - Panadería Moderna")
