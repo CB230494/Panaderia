@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from pathlib import Path
-from exportar_pdf import generar_pdf_receta
+from exportar_pdf import generar_pdf_receta  # Asegurate de tener este archivo en tu proyecto
 from database.bd_ingresar import (
     # Productos
     crear_tabla_productos,
@@ -25,7 +25,6 @@ from database.bd_ingresar import (
     eliminar_receta
 )
 
-
 st.set_page_config(page_title="Panadería Moderna", layout="wide")
 st.title("🥐 Sistema de Gestión - Panadería Moderna")
 
@@ -43,7 +42,7 @@ with tabs[0]:
     st.subheader("🧁 Gestión de Productos")
 
     # --- Formulario para agregar producto ---
-    with st.form("form_producto"):
+    with st.form("form_agregar_producto"):
         st.markdown("### ➕ Agregar nuevo producto")
         nombre = st.text_input("📛 Nombre del producto")
         unidad = st.selectbox("📦 Unidad", ["unidad", "porción", "pieza", "queque", "paquete"])
@@ -83,7 +82,7 @@ with tabs[0]:
                 costo_original = producto[4]
                 break
 
-        with st.form("editar_producto"):
+        with st.form("form_editar_producto"):
             nuevo_nombre = st.text_input("🍥 Nombre", value=nombre_original)
             nueva_unidad = st.selectbox("📦 Unidad", ["unidad", "porción", "pieza", "queque", "paquete"],
                                         index=["unidad", "porción", "pieza", "queque", "paquete"].index(unidad_original))
@@ -106,7 +105,6 @@ with tabs[0]:
                 st.rerun()
     else:
         st.info("ℹ️ No hay productos registrados todavía.")
-
 # =============================
 # 📦 PESTAÑA DE INSUMOS
 # =============================
@@ -125,7 +123,7 @@ with tabs[1]:
     }
 
     # --- Formulario para agregar insumo ---
-    with st.form("form_insumo"):
+    with st.form("form_agregar_insumo"):
         st.markdown("### ➕ Agregar nuevo insumo")
         nombre_i = st.text_input("📛 Nombre del insumo")
         unidad_i_visible = st.selectbox("📐 Unidad", list(unidades_dict.keys()))
@@ -150,14 +148,7 @@ with tabs[1]:
         df_i = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Unitario", "Cantidad"])
 
         # Mostrar unidad con nombre legible
-        unidad_legible = {
-            "kg": "Kilogramo (kg)",
-            "g": "Gramo (g)",
-            "l": "Litro (l)",
-            "ml": "Mililitro (ml)",
-            "barra": "Barra",
-            "unidad": "Unidad"
-        }
+        unidad_legible = {v: k for k, v in unidades_dict.items()}
         df_i["Unidad"] = df_i["Unidad"].map(unidad_legible)
 
         # Calcular total
@@ -181,7 +172,7 @@ with tabs[1]:
 
         unidad_visible_original = [k for k, v in unidades_dict.items() if v == unidad_original][0]
 
-        with st.form("editar_insumo"):
+        with st.form("form_editar_insumo"):
             nuevo_nombre_i = st.text_input("📛 Nombre", value=nombre_original)
             nueva_unidad_visible = st.selectbox("📐 Unidad", list(unidades_dict.keys()),
                                                 index=list(unidades_dict.keys()).index(unidad_visible_original))
@@ -205,14 +196,6 @@ with tabs[1]:
                 st.rerun()
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
-from pathlib import Path
-
-from pathlib import Path
-from exportar_pdf import generar_pdf_receta
-
-from pathlib import Path
-from exportar_pdf import generar_pdf_receta
-
 # =============================
 # 📋 PESTAÑA DE RECETAS
 # =============================
@@ -223,57 +206,7 @@ with tabs[2]:
     # ========================
     # ➕ Crear nueva receta
     # ========================
-    with st.form("form_receta"):
-        st.markdown("### ➕ Crear nueva receta")
-
-        nombre_receta = st.text_input("📛 Nombre de la receta")
-        instrucciones = st.text_area("📖 Instrucciones de preparación")
-        imagen_receta = st.file_uploader("📷 Foto del producto final (opcional)", type=["png", "jpg", "jpeg"])
-
-        insumos = obtener_insumos()
-        if not insumos:
-            st.warning("⚠️ No hay insumos registrados. Agrega insumos primero.")
-        else:
-            st.markdown("### 🧺 Seleccionar ingredientes:")
-            insumo_seleccionado = []
-            for insumo in insumos:
-                insumo_id, nombre, unidad, _, _ = insumo
-                cantidad = st.number_input(f"{nombre} ({unidad})", min_value=0.0, step=0.1, key=f"nuevo_{insumo_id}")
-                if cantidad > 0:
-                    insumo_seleccionado.append((insumo_id, cantidad))
-
-            submitted_receta = st.form_submit_button("🍽️ Guardar receta")
-
-            if submitted_receta:
-                if nombre_receta and insumo_seleccionado:
-                    agregar_receta(nombre_receta, instrucciones, insumo_seleccionado)
-
-                    # Guardar imagen si fue cargada
-                    if imagen_receta:
-                        carpeta_imagenes = Path("imagenes_recetas")
-                        carpeta_imagenes.mkdir(exist_ok=True)
-                        nombre_archivo = f"{nombre_receta.replace(' ', '_')}.jpg"
-                        with open(carpeta_imagenes / nombre_archivo, "wb") as f:
-                            f.write(imagen_receta.read())
-
-                    st.success(f"✅ Receta '{nombre_receta}' guardada correctamente.")
-                    st.rerun()
-                else:
-                    st.warning("⚠️ Debes ingresar un nombre y al menos un insumo.")
-
-
-
-# =============================
-# 📋 PESTAÑA DE RECETAS
-# =============================
-with tabs[2]:
-    st.subheader("📋 Gestión de Recetas")
-    crear_tabla_recetas()
-
-    # ========================
-    # ➕ Crear nueva receta
-    # ========================
-    with st.form("form_receta"):
+    with st.form("form_nueva_receta"):  # clave única
         st.markdown("### ➕ Crear nueva receta")
 
         nombre_receta = st.text_input("📛 Nombre de la receta")
@@ -324,7 +257,7 @@ with tabs[2]:
             costo_total = sum(cant * costo for _, cant, _, costo in detalles)
 
             with st.expander(f"🍰 {nombre} - Costo total: ₡{costo_total:,.2f}"):
-                # Mostrar imagen
+                # Mostrar imagen si existe
                 ruta_img = Path("imagenes_recetas") / f"{nombre.replace(' ', '_')}.jpg"
                 if ruta_img.exists():
                     st.image(str(ruta_img), caption=f"📷 {nombre}", width=300)
@@ -359,7 +292,7 @@ with tabs[2]:
                     if st.button("✏️ Editar receta", key=f"editar_{receta_id}"):
                         st.session_state[f"editando_{receta_id}"] = True
 
-                # Formulario de edición dentro del expander
+                # --- Formulario para editar receta ---
                 if st.session_state.get(f"editando_{receta_id}", False):
                     with st.form(f"form_edicion_{receta_id}"):
                         nuevo_nombre = st.text_input("📛 Nuevo nombre", value=nombre, key=f"nombre_{receta_id}")
@@ -401,5 +334,6 @@ with tabs[2]:
                             st.rerun()
     else:
         st.info("ℹ️ No hay recetas registradas todavía.")
+
 
 
