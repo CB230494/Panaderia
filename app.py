@@ -204,6 +204,8 @@ with tabs[1]:
                 st.rerun()
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
+from pathlib import Path
+
 # =============================
 # 📋 PESTAÑA DE RECETAS
 # =============================
@@ -217,6 +219,7 @@ with tabs[2]:
 
         nombre_receta = st.text_input("📛 Nombre de la receta")
         instrucciones = st.text_area("📖 Instrucciones de preparación")
+        imagen_receta = st.file_uploader("📷 Foto del producto final (opcional)", type=["png", "jpg", "jpeg"])
 
         insumos = obtener_insumos()
         if not insumos:
@@ -238,6 +241,15 @@ with tabs[2]:
             if submitted_receta:
                 if nombre_receta and insumo_seleccionado:
                     agregar_receta(nombre_receta, instrucciones, insumo_seleccionado)
+
+                    # Guardar imagen si fue cargada
+                    if imagen_receta:
+                        carpeta_imagenes = Path("imagenes_recetas")
+                        carpeta_imagenes.mkdir(exist_ok=True)
+                        nombre_archivo = f"{nombre_receta.replace(' ', '_')}.jpg"
+                        with open(carpeta_imagenes / nombre_archivo, "wb") as f:
+                            f.write(imagen_receta.read())
+
                     st.success(f"✅ Receta '{nombre_receta}' guardada correctamente.")
                     st.rerun()
                 else:
@@ -251,21 +263,37 @@ with tabs[2]:
         for receta in recetas:
             receta_id, nombre, instrucciones = receta
             detalles = obtener_detalle_receta(receta_id)
-
-            # Calcular costo total
             costo_total = sum(cant * costo for _, cant, _, costo in detalles)
 
             with st.expander(f"🍰 {nombre} - Costo total: ₡{costo_total:,.2f}"):
+                # Mostrar imagen si existe
+                ruta_img = Path("imagenes_recetas") / f"{nombre.replace(' ', '_')}.jpg"
+                if ruta_img.exists():
+                    st.image(str(ruta_img), caption=f"📷 {nombre}", width=300)
+
                 st.markdown(f"**📝 Instrucciones:** {instrucciones or 'Sin instrucciones.'}")
                 st.markdown("**🧾 Ingredientes:**")
                 for nombre_insumo, cantidad, unidad, costo_unitario in detalles:
                     st.markdown(f"- {nombre_insumo} — {cantidad} {unidad} — ₡{costo_unitario:,.2f} c/u")
 
-                eliminar_btn = st.button(f"🗑️ Eliminar receta", key=f"eliminar_{receta_id}")
-                if eliminar_btn:
-                    eliminar_receta(receta_id)
-                    st.success(f"🗑️ Receta '{nombre}' eliminada.")
-                    st.rerun()
+                col1, col2 = st.columns(2)
+                with col1:
+                    from exportar_pdf import generar_pdf_receta
+                    pdf_bytes = generar_pdf_receta(nombre, instrucciones, detalles, costo_total)
+                    st.download_button(
+                        label="📄 Descargar PDF",
+                        data=pdf_bytes,
+                        file_name=f"{nombre}.pdf",
+                        mime="application/pdf"
+                    )
+                with col2:
+                    eliminar_btn = st.button(f"🗑️ Eliminar receta", key=f"eliminar_{receta_id}")
+                    if eliminar_btn:
+                        eliminar_receta(receta_id)
+                        if ruta_img.exists():
+                            ruta_img.unlink()
+                        st.success(f"🗑️ Receta '{nombre}' eliminada.")
+                        st.rerun()
     else:
         st.info("ℹ️ No hay recetas registradas todavía.")
 
