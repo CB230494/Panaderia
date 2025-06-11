@@ -335,5 +335,37 @@ with tabs[2]:
     else:
         st.info("ℹ️ No hay recetas registradas todavía.")
 
+# =============================
+# 📤 PESTAÑA DE ENTRADAS/SALIDAS
+# =============================
+with tabs[3]:
+    st.subheader("📤 Registro de Entradas y Salidas de Insumos")
+
+    insumos = obtener_insumos()
+    if not insumos:
+        st.warning("⚠️ No hay insumos disponibles. Agrega primero desde la pestaña de Insumos.")
+    else:
+        nombres_insumos = [f"{insumo[1]} ({insumo[2]})" for insumo in insumos]
+        insumo_elegido = st.selectbox("🔽 Selecciona el insumo", nombres_insumos)
+        tipo_movimiento = st.radio("📌 Tipo de movimiento", ["Entrada", "Salida"])
+        cantidad = st.number_input("📏 Cantidad", min_value=0.0, step=0.1)
+        registrar = st.button("💾 Registrar movimiento")
+
+        if registrar:
+            index = nombres_insumos.index(insumo_elegido)
+            insumo_id, nombre, unidad, costo_unitario, cantidad_actual = insumos[index]
+
+            if tipo_movimiento == "Entrada":
+                nueva_cantidad = cantidad_actual + cantidad
+            else:
+                if cantidad > cantidad_actual:
+                    st.error("❌ No se puede realizar la salida. Cantidad insuficiente.")
+                    st.stop()
+                nueva_cantidad = cantidad_actual - cantidad
+
+            actualizar_insumo(insumo_id, nombre, unidad, costo_unitario, nueva_cantidad)
+            st.success(f"✅ {tipo_movimiento} registrada exitosamente.")
+            st.rerun()
+
 
 
