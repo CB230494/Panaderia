@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from exportar_pdf import generar_pdf_receta
 from database.bd_ingresar import (
     crear_tabla_productos,
     agregar_producto,
