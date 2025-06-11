@@ -1,11 +1,19 @@
 from fpdf import FPDF
 from pathlib import Path
+import unicodedata
+
+def limpiar_texto(texto):
+    if not texto:
+        return ""
+    # Quita acentos y reemplaza caracteres especiales
+    texto = unicodedata.normalize("NFKD", texto).encode("ASCII", "ignore").decode("ASCII")
+    return texto
 
 def generar_pdf_receta(nombre, instrucciones, ingredientes, costo_total):
     pdf = FPDF()
     pdf.add_page()
 
-    # Agregar imagen si existe
+    # Imagen si existe
     imagen_path = Path("imagenes_recetas") / f"{nombre.replace(' ', '_')}.jpg"
     if imagen_path.exists():
         try:
@@ -16,13 +24,12 @@ def generar_pdf_receta(nombre, instrucciones, ingredientes, costo_total):
     else:
         pdf.set_y(20)
 
-    # Título de la receta
+    # Titulo
     pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, txt=f"Receta: {nombre}", ln=True)
+    pdf.cell(0, 10, txt=f"Receta: {limpiar_texto(nombre)}", ln=True)
 
-    # Costo total
     pdf.set_font("Arial", "", 12)
-    pdf.cell(0, 10, txt=f"Costo total estimado: ₡{costo_total:,.2f}", ln=True)
+    pdf.cell(0, 10, txt=f"Costo total estimado: {costo_total:,.2f} colones", ln=True)
 
     # Ingredientes
     pdf.ln(5)
@@ -32,7 +39,7 @@ def generar_pdf_receta(nombre, instrucciones, ingredientes, costo_total):
     pdf.set_font("Arial", "", 12)
     for nombre_insumo, cantidad, unidad, costo_unitario in ingredientes:
         linea = f"- {nombre_insumo}: {cantidad} {unidad} (₡{costo_unitario:,.2f})"
-        pdf.cell(0, 8, txt=linea.encode('latin-1', errors='replace').decode('latin-1'), ln=True)
+        pdf.cell(0, 8, txt=limpiar_texto(linea), ln=True)
 
     # Instrucciones
     pdf.ln(5)
@@ -42,8 +49,6 @@ def generar_pdf_receta(nombre, instrucciones, ingredientes, costo_total):
     pdf.set_font("Arial", "", 12)
     texto = instrucciones or "Sin instrucciones."
     for linea in texto.split('\n'):
-        linea_segura = linea.encode('latin-1', errors='replace').decode('latin-1')
-        pdf.multi_cell(0, 8, linea_segura)
+        pdf.multi_cell(0, 8, limpiar_texto(linea))
 
-    # Devuelve el PDF como bytes
-    return pdf.output(dest="S").encode("latin-1", errors="replace")
+    return pdf.output(dest="S").encode("latin-1")
