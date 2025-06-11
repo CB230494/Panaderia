@@ -193,4 +193,68 @@ with tabs[1]:
                 st.rerun()
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
+# =============================
+# 📋 PESTAÑA DE RECETAS
+# =============================
+with tabs[2]:
+    st.subheader("📋 Gestión de Recetas")
+    crear_tabla_recetas()
+
+    # --- Agregar nueva receta ---
+    with st.form("form_receta"):
+        st.markdown("### ➕ Crear nueva receta")
+
+        nombre_receta = st.text_input("📛 Nombre de la receta")
+        instrucciones = st.text_area("📖 Instrucciones de preparación")
+
+        insumos = obtener_insumos()
+        if not insumos:
+            st.warning("⚠️ No hay insumos registrados. Agrega insumos primero.")
+        else:
+            st.markdown("### 🧺 Seleccionar ingredientes:")
+
+            insumo_seleccionado = []
+            for insumo in insumos:
+                insumo_id = insumo[0]
+                nombre = insumo[1]
+                unidad = insumo[2]
+                cantidad = st.number_input(f"{nombre} ({unidad})", min_value=0.0, step=0.1, key=f"insumo_{insumo_id}")
+                if cantidad > 0:
+                    insumo_seleccionado.append((insumo_id, cantidad))
+
+            submitted_receta = st.form_submit_button("🍽️ Guardar receta")
+
+            if submitted_receta:
+                if nombre_receta and insumo_seleccionado:
+                    agregar_receta(nombre_receta, instrucciones, insumo_seleccionado)
+                    st.success(f"✅ Receta '{nombre_receta}' guardada correctamente.")
+                    st.rerun()
+                else:
+                    st.warning("⚠️ Debes ingresar un nombre y al menos un insumo.")
+
+    # --- Listado de recetas ---
+    st.markdown("### 📋 Recetas registradas")
+    recetas = obtener_recetas()
+
+    if recetas:
+        for receta in recetas:
+            receta_id, nombre, instrucciones = receta
+            detalles = obtener_detalle_receta(receta_id)
+
+            # Calcular costo total
+            costo_total = sum(cant * costo for _, cant, _, costo in detalles)
+
+            with st.expander(f"🍰 {nombre} - Costo total: ₡{costo_total:,.2f}"):
+                st.markdown(f"**📝 Instrucciones:** {instrucciones or 'Sin instrucciones.'}")
+                st.markdown("**🧾 Ingredientes:**")
+                for nombre_insumo, cantidad, unidad, costo_unitario in detalles:
+                    st.markdown(f"- {nombre_insumo} — {cantidad} {unidad} — ₡{costo_unitario:,.2f} c/u")
+
+                eliminar_btn = st.button(f"🗑️ Eliminar receta", key=f"eliminar_{receta_id}")
+                if eliminar_btn:
+                    eliminar_receta(receta_id)
+                    st.success(f"🗑️ Receta '{nombre}' eliminada.")
+                    st.rerun()
+    else:
+        st.info("ℹ️ No hay recetas registradas todavía.")
 
