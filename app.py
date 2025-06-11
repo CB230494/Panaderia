@@ -359,69 +359,132 @@ with tabs[4]:
 # =============================
 # 📊 PESTAÑA DE BALANCE
 # =============================
+from datetime import datetime
+from fpdf import FPDF
+
 with tabs[5]:
-    st.subheader("📊 Balance financiero")
-    crear_tabla_ventas()
-    crear_tabla_productos()
+    st.subheader("📊 Balance General del Negocio")
 
+    # Cargar datos
+    insumos = obtener_insumos()
     productos = obtener_productos()
-    ventas = obtener_historial_ventas()
+    historial = obtener_movimientos()
+    ventas = obtener_ventas()
 
-    if not productos or ventas.empty:
-        st.info("ℹ️ No hay suficientes datos para generar un balance.")
+    unidades_legibles = {
+        "kg": "kilogramos",
+        "g": "gramos",
+        "l": "litros",
+        "ml": "mililitros",
+        "barra": "barras",
+        "unidad": "unidades",
+        "paquete": "paquetes",
+        "pieza": "piezas",
+        "porción": "porciones",
+        "queque": "queques"
+    }
+
+    # --- Valor del inventario de insumos ---
+    if insumos:
+        st.markdown("### 📦 Valor del Inventario de Insumos")
+        df_insumos = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Unitario", "Cantidad"])
+        df_insumos["Unidad"] = df_insumos["Unidad"].map(unidades_legibles)
+        df_insumos["Total (₡)"] = df_insumos["Costo Unitario"] * df_insumos["Cantidad"]
+        total_insumos = df_insumos["Total (₡)"].sum()
+        st.dataframe(df_insumos[["Nombre", "Unidad", "Cantidad", "Costo Unitario", "Total (₡)"]], use_container_width=True)
+        st.markdown(f"**📌 Total inventario insumos:** ₡{total_insumos:,.2f}")
     else:
-        total_ventas = 0
-        total_costos = 0
-        balance_data = []
+        total_insumos = 0
+        st.info("ℹ️ No hay insumos registrados.")
 
-        for index, row in ventas.iterrows():
-            producto_id = row["Producto ID"]
-            cantidad = row["Cantidad"]
-            precio_unitario = row["Precio Unitario"]
-            fecha = row["Fecha"]
+    st.divider()
 
-            producto = next((p for p in productos if p[0] == producto_id), None)
-            if producto:
-                nombre = producto[1]
-                costo_unitario = producto[4]
-                unidad = producto[2]
-                total_precio = cantidad * precio_unitario
-                total_costo = cantidad * costo_unitario
-                ganancia = total_precio - total_costo
+    # --- Ventas registradas ---
+    st.markdown("### 💰 Resumen de Ventas")
 
-                total_ventas += total_precio
-                total_costos += total_costo
+    if ventas:
+        df_ventas = pd.DataFrame(ventas, columns=["ID", "Producto", "Unidad", "Cantidad", "Precio Venta", "Costo", "Fecha", "Ganancia"])
+        df_ventas["Fecha"] = pd.to_datetime(df_ventas["Fecha"])
+        total_ingresos = (df_ventas["Cantidad"] * df_ventas["Precio Venta"]).sum()
+        total_ganancias = df_ventas["Ganancia"].sum()
+        total_costos = df_ventas["Cantidad"] * df_ventas["Costo"]
+        st.dataframe(df_ventas[["Producto", "Cantidad", "Precio Venta", "Costo", "Fecha", "Ganancia"]], use_container_width=True)
 
-                balance_data.append({
-                    "Fecha": fecha,
-                    "Producto": nombre,
-                    "Unidad": unidad,
-                    "Cantidad": cantidad,
-                    "Precio Total": total_precio,
-                    "Costo Total": total_costo,
-                    "Ganancia": ganancia
-                })
+        st.markdown(f"**💵 Total ingresos:** ₡{total_ingresos:,.2f}")
+        st.markdown(f"**🧾 Total costos:** ₡{total_costos.sum():,.2f}")
+        st.markdown(f"**📈 Ganancia neta:** ₡{total_ganancias:,.2f}")
+    else:
+        total_ingresos = total_ganancias = 0
+        st.info("ℹ️ No hay ventas registradas.")
 
-        df_balance = pd.DataFrame(balance_data)
+    st.divider()
 
-        st.dataframe(df_balance)
+    # --- Historial de entradas y salidas ---
+    st.markdown("### 🧾 Historial de Entradas y Salidas")
+    if historial:
+        df_historial = pd.DataFrame(historial, columns=["ID", "Insumo", "Tipo", "Cantidad", "Fecha y Hora", "Motivo"])
+        st.dataframe(df_historial[["Insumo", "Tipo", "Cantidad", "Fecha y Hora", "Motivo"]], use_container_width=True)
+    else:
+        st.info("ℹ️ No hay movimientos registrados.")
 
-        st.markdown(f"### 💵 Total ventas: ₡{total_ventas:,.2f}")
-        st.markdown(f"### 💸 Total costos: ₡{total_costos:,.2f}")
-        st.markdown(f"### 📈 Ganancia neta: ₡{total_ventas - total_costos:,.2f}")
+    st.divider()
 
-        # Botón para exportar a PDF
-        st.markdown("---")
-        st.markdown("### 📄 Exportar a PDF")
-        from exportar_pdf import generar_pdf_balance
+    # --- PDF de balance ---
+    def generar_pdf_balance(insumos, ventas, historial):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "Balance General - Panadería Moderna", ln=True, align="C")
+        pdf.ln(5)
 
-        pdf_bytes = generar_pdf_balance(df_balance, total_ventas, total_costos)
-        st.download_button(
-            label="📥 Descargar Balance en PDF",
-            data=pdf_bytes,
-            file_name="balance_financiero.pdf",
-            mime="application/pdf"
-        )
+        pdf.set_font("Arial", "", 12)
+        pdf.cell(0, 10, f"Generado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ln=True)
+        pdf.ln(5)
+
+        # Inventario
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, "📦 Inventario de Insumos:", ln=True)
+        pdf.set_font("Arial", "", 11)
+        for insumo in insumos:
+            nombre, unidad, costo, cantidad = insumo[1], unidades_legibles[insumo[2]], insumo[3], insumo[4]
+            total = costo * cantidad
+            pdf.cell(0, 8, f"- {nombre} ({unidad}): {cantidad} x ₡{costo:,.2f} = ₡{total:,.2f}", ln=True)
+
+        pdf.ln(4)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, "💰 Ventas Realizadas:", ln=True)
+        pdf.set_font("Arial", "", 11)
+        for venta in ventas:
+            nombre, cantidad, precio, fecha = venta[1], venta[3], venta[4], venta[6]
+            total = cantidad * precio
+            pdf.cell(0, 8, f"- {nombre}: {cantidad} x ₡{precio:,.2f} = ₡{total:,.2f} ({fecha})", ln=True)
+
+        pdf.ln(4)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, "📦 Historial de Movimientos:", ln=True)
+        pdf.set_font("Arial", "", 11)
+        for mov in historial:
+            insumo, tipo, cantidad, fecha, motivo = mov[1], mov[2], mov[3], mov[4], mov[5]
+            motivo_str = f" ({motivo})" if motivo else ""
+            pdf.cell(0, 8, f"- {fecha}: {tipo} de {cantidad} de {insumo}{motivo_str}", ln=True)
+
+        pdf.ln(10)
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, f"🔸 Total inventario: ₡{total_insumos:,.2f}", ln=True)
+        pdf.cell(0, 10, f"🔸 Total ingresos: ₡{total_ingresos:,.2f}", ln=True)
+        pdf.cell(0, 10, f"🔸 Ganancia neta: ₡{total_ganancias:,.2f}", ln=True)
+
+        return pdf.output(dest="S").encode("latin-1", errors="replace")
+
+    pdf_bytes = generar_pdf_balance(insumos, ventas, historial)
+
+    st.download_button(
+        label="📥 Descargar Balance en PDF",
+        data=pdf_bytes,
+        file_name="balance_general.pdf",
+        mime="application/pdf"
+    )
+
 
 
 
