@@ -24,7 +24,7 @@ from database.bd_ingresar import (
     obtener_detalle_receta,
     eliminar_receta,
 
-    # Entradas y Salidas
+    # Entradas / Salidas
     crear_tabla_entradas_salidas,
     registrar_movimiento,
     obtener_movimientos,
@@ -32,8 +32,9 @@ from database.bd_ingresar import (
     # Ventas
     crear_tabla_ventas,
     registrar_venta,
-    obtener_ventas
+    obtener_historial_ventas
 )
+
 
 st.set_page_config(page_title="Panadería Moderna", layout="wide")
 st.title("🥐 Sistema de Gestión - Panadería Moderna")
