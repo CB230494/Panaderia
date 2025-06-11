@@ -105,3 +105,75 @@ def eliminar_insumo(id_insumo):
     cursor.execute("DELETE FROM insumos WHERE id = ?", (id_insumo,))
     conn.commit()
     conn.close()
+
+# =============================
+# TABLAS Y CRUD PARA RECETAS
+# =============================
+
+def crear_tabla_recetas():
+    conn, cursor = conectar()
+    # Tabla principal de recetas
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS recetas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            instrucciones TEXT
+        )
+    """)
+    # Detalle de insumos usados en cada receta
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS receta_detalle (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            receta_id INTEGER,
+            insumo_id INTEGER,
+            cantidad REAL,
+            FOREIGN KEY (receta_id) REFERENCES recetas(id),
+            FOREIGN KEY (insumo_id) REFERENCES insumos(id)
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+# Agregar receta
+def agregar_receta(nombre, instrucciones, insumos_utilizados):
+    conn, cursor = conectar()
+    cursor.execute("INSERT INTO recetas (nombre, instrucciones) VALUES (?, ?)", (nombre, instrucciones))
+    receta_id = cursor.lastrowid  # ID de la nueva receta
+
+    for insumo_id, cantidad in insumos_utilizados:
+        cursor.execute("""
+            INSERT INTO receta_detalle (receta_id, insumo_id, cantidad)
+            VALUES (?, ?, ?)
+        """, (receta_id, insumo_id, cantidad))
+
+    conn.commit()
+    conn.close()
+
+# Obtener todas las recetas
+def obtener_recetas():
+    conn, cursor = conectar()
+    cursor.execute("SELECT * FROM recetas")
+    recetas = cursor.fetchall()
+    conn.close()
+    return recetas
+
+# Obtener detalle de una receta
+def obtener_detalle_receta(receta_id):
+    conn, cursor = conectar()
+    cursor.execute("""
+        SELECT insumos.nombre, receta_detalle.cantidad, insumos.unidad, insumos.costo_unitario
+        FROM receta_detalle
+        JOIN insumos ON receta_detalle.insumo_id = insumos.id
+        WHERE receta_detalle.receta_id = ?
+    """, (receta_id,))
+    detalles = cursor.fetchall()
+    conn.close()
+    return detalles
+
+# Eliminar receta (y su detalle)
+def eliminar_receta(receta_id):
+    conn, cursor = conectar()
+    cursor.execute("DELETE FROM receta_detalle WHERE receta_id = ?", (receta_id,))
+    cursor.execute("DELETE FROM recetas WHERE id = ?", (receta_id,))
+    conn.commit()
+    conn.close()
