@@ -1,16 +1,13 @@
 import sqlite3
+from datetime import datetime
 
-# ==========================================
-# 🔧 CONEXIÓN
-# ==========================================
+# Conexión a la base de datos
 def conectar():
     conn = sqlite3.connect("database/panaderia.db")
     cursor = conn.cursor()
     return conn, cursor
 
-# ==========================================
-# 🧁 PRODUCTOS
-# ==========================================
+# ------------------- PRODUCTOS -------------------
 def crear_tabla_productos():
     conn, cursor = conectar()
     cursor.execute("""
@@ -19,8 +16,7 @@ def crear_tabla_productos():
             nombre TEXT NOT NULL,
             unidad TEXT NOT NULL,
             precio_venta REAL NOT NULL,
-            costo REAL NOT NULL,
-            cantidad REAL DEFAULT 0
+            costo REAL NOT NULL
         )
     """)
     conn.commit()
@@ -28,8 +24,8 @@ def crear_tabla_productos():
 
 def agregar_producto(nombre, unidad, precio_venta, costo):
     conn, cursor = conectar()
-    cursor.execute("INSERT INTO productos (nombre, unidad, precio_venta, costo, cantidad) VALUES (?, ?, ?, ?, ?)",
-                   (nombre, unidad, precio_venta, costo, 0))
+    cursor.execute("INSERT INTO productos (nombre, unidad, precio_venta, costo) VALUES (?, ?, ?, ?)",
+                   (nombre, unidad, precio_venta, costo))
     conn.commit()
     conn.close()
 
@@ -40,18 +36,12 @@ def obtener_productos():
     conn.close()
     return productos
 
-def actualizar_producto(id_producto, nombre, unidad, precio_venta, costo, cantidad=None):
+def actualizar_producto(id_producto, nombre, unidad, precio_venta, costo):
     conn, cursor = conectar()
-    if cantidad is not None:
-        cursor.execute("""
-            UPDATE productos SET nombre=?, unidad=?, precio_venta=?, costo=?, cantidad=?
-            WHERE id=?
-        """, (nombre, unidad, precio_venta, costo, cantidad, id_producto))
-    else:
-        cursor.execute("""
-            UPDATE productos SET nombre=?, unidad=?, precio_venta=?, costo=?
-            WHERE id=?
-        """, (nombre, unidad, precio_venta, costo, id_producto))
+    cursor.execute("""
+        UPDATE productos SET nombre = ?, unidad = ?, precio_venta = ?, costo = ?
+        WHERE id = ?
+    """, (nombre, unidad, precio_venta, costo, id_producto))
     conn.commit()
     conn.close()
 
@@ -61,9 +51,7 @@ def eliminar_producto(id_producto):
     conn.commit()
     conn.close()
 
-# ==========================================
-# 📦 INSUMOS
-# ==========================================
+# ------------------- INSUMOS -------------------
 def crear_tabla_insumos():
     conn, cursor = conectar()
     cursor.execute("""
@@ -95,7 +83,8 @@ def obtener_insumos():
 def actualizar_insumo(id_insumo, nombre, unidad, costo_unitario, cantidad):
     conn, cursor = conectar()
     cursor.execute("""
-        UPDATE insumos SET nombre=?, unidad=?, costo_unitario=?, cantidad=? WHERE id=?
+        UPDATE insumos SET nombre = ?, unidad = ?, costo_unitario = ?, cantidad = ?
+        WHERE id = ?
     """, (nombre, unidad, costo_unitario, cantidad, id_insumo))
     conn.commit()
     conn.close()
@@ -106,9 +95,7 @@ def eliminar_insumo(id_insumo):
     conn.commit()
     conn.close()
 
-# ==========================================
-# 📋 RECETAS
-# ==========================================
+# ------------------- RECETAS -------------------
 def crear_tabla_recetas():
     conn, cursor = conectar()
     cursor.execute("""
@@ -136,10 +123,8 @@ def agregar_receta(nombre, instrucciones, insumos_utilizados):
     cursor.execute("INSERT INTO recetas (nombre, instrucciones) VALUES (?, ?)", (nombre, instrucciones))
     receta_id = cursor.lastrowid
     for insumo_id, cantidad in insumos_utilizados:
-        cursor.execute("""
-            INSERT INTO receta_detalle (receta_id, insumo_id, cantidad)
-            VALUES (?, ?, ?)
-        """, (receta_id, insumo_id, cantidad))
+        cursor.execute("INSERT INTO receta_detalle (receta_id, insumo_id, cantidad) VALUES (?, ?, ?)",
+                       (receta_id, insumo_id, cantidad))
     conn.commit()
     conn.close()
 
@@ -169,9 +154,7 @@ def eliminar_receta(receta_id):
     conn.commit()
     conn.close()
 
-# ==========================================
-# 📤 ENTRADAS/SALIDAS
-# ==========================================
+# ------------------- MOVIMIENTOS -------------------
 def crear_tabla_entradas_salidas():
     conn, cursor = conectar()
     cursor.execute("""
@@ -188,8 +171,9 @@ def crear_tabla_entradas_salidas():
     conn.commit()
     conn.close()
 
-def registrar_movimiento(insumo_id, tipo, cantidad, fecha_hora, motivo=""):
+def registrar_movimiento(insumo_id, tipo, cantidad, motivo=""):
     conn, cursor = conectar()
+    fecha_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cursor.execute("""
         INSERT INTO entradas_salidas (insumo_id, tipo, cantidad, fecha_hora, motivo)
         VALUES (?, ?, ?, ?, ?)
@@ -200,18 +184,16 @@ def registrar_movimiento(insumo_id, tipo, cantidad, fecha_hora, motivo=""):
 def obtener_movimientos():
     conn, cursor = conectar()
     cursor.execute("""
-        SELECT es.id, i.nombre, es.tipo, es.cantidad, es.fecha_hora, es.motivo
-        FROM entradas_salidas es
-        JOIN insumos i ON es.insumo_id = i.id
-        ORDER BY es.fecha_hora DESC
+        SELECT entradas_salidas.id, insumos.nombre, tipo, cantidad, fecha_hora, motivo
+        FROM entradas_salidas
+        JOIN insumos ON entradas_salidas.insumo_id = insumos.id
+        ORDER BY fecha_hora DESC
     """)
     movimientos = cursor.fetchall()
     conn.close()
     return movimientos
 
-# ==========================================
-# 💰 VENTAS
-# ==========================================
+# ------------------- VENTAS -------------------
 def crear_tabla_ventas():
     conn, cursor = conectar()
     cursor.execute("""
@@ -219,34 +201,37 @@ def crear_tabla_ventas():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             producto_id INTEGER,
             cantidad REAL,
-            ingreso REAL,
+            precio_venta REAL,
             costo REAL,
+            fecha TEXT,
             ganancia REAL,
-            fecha_hora TEXT,
             FOREIGN KEY(producto_id) REFERENCES productos(id)
         )
     """)
     conn.commit()
     conn.close()
 
-def registrar_venta(producto_id, cantidad, ingreso, costo, ganancia, fecha_hora):
+def registrar_venta(producto_id, cantidad, precio_venta, costo):
     conn, cursor = conectar()
+    fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ganancia = (precio_venta - costo) * cantidad
     cursor.execute("""
-        INSERT INTO ventas (producto_id, cantidad, ingreso, costo, ganancia, fecha_hora)
+        INSERT INTO ventas (producto_id, cantidad, precio_venta, costo, fecha, ganancia)
         VALUES (?, ?, ?, ?, ?, ?)
-    """, (producto_id, cantidad, ingreso, costo, ganancia, fecha_hora))
+    """, (producto_id, cantidad, precio_venta, costo, fecha, ganancia))
     conn.commit()
     conn.close()
 
-def obtener_historial_ventas():
+def obtener_ventas():
     conn, cursor = conectar()
     cursor.execute("""
-        SELECT v.id, p.nombre, v.cantidad, v.ingreso, v.costo, v.ganancia, v.fecha_hora
-        FROM ventas v
-        JOIN productos p ON v.producto_id = p.id
-        ORDER BY v.fecha_hora DESC
+        SELECT ventas.id, productos.nombre, productos.unidad, ventas.cantidad, ventas.precio_venta, ventas.costo, ventas.fecha, ventas.ganancia
+        FROM ventas
+        JOIN productos ON ventas.producto_id = productos.id
+        ORDER BY ventas.fecha DESC
     """)
     ventas = cursor.fetchall()
     conn.close()
     return ventas
+
 
