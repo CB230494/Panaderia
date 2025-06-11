@@ -8,19 +8,18 @@ from bd_ingresar import (
     eliminar_producto
 )
 
-# Configuración general
 st.set_page_config(page_title="Panadería Moderna", layout="wide")
 st.title("🥐 Sistema de Gestión - Panadería Moderna")
 
-# Crear tabla si no existe
+# Crear tabla al cargar la app
 crear_tabla_productos()
 
-# Menú en pestañas
+# Tabs del menú superior
 tabs = st.tabs(["🧁 Productos", "📦 Insumos", "📋 Recetas", "📤 Entradas/Salidas", "💰 Ventas", "📊 Balance"])
 
-# --------------------------
+# =============================
 # 🧁 PESTAÑA DE PRODUCTOS
-# --------------------------
+# =============================
 with tabs[0]:
     st.subheader("🧁 Gestión de Productos")
 
@@ -37,7 +36,7 @@ with tabs[0]:
             if nombre and unidad:
                 agregar_producto(nombre, unidad, precio_venta, costo)
                 st.success(f"✅ Producto '{nombre}' agregado correctamente.")
-                st.experimental_rerun()
+                st.rerun()  # <- esta es la forma actualizada
             else:
                 st.warning("⚠️ Debes completar todos los campos.")
 
@@ -57,9 +56,11 @@ with tabs[0]:
 
         with st.form("editar_producto"):
             nuevo_nombre = st.text_input("Nombre", value=seleccionado["Nombre"])
-            nueva_unidad = st.selectbox("Unidad", ["unidad", "porción", "pieza", "queque", "paquete"], index=["unidad", "porción", "pieza", "queque", "paquete"].index(seleccionado["Unidad"]))
+            nueva_unidad = st.selectbox("Unidad", ["unidad", "porción", "pieza", "queque", "paquete"],
+                                         index=["unidad", "porción", "pieza", "queque", "paquete"].index(seleccionado["Unidad"]))
             nuevo_precio = st.number_input("Precio de venta (₡)", value=float(seleccionado["Precio Venta"]), format="%.2f")
             nuevo_costo = st.number_input("Costo de elaboración (₡)", value=float(seleccionado["Costo"]), format="%.2f")
+
             col1, col2 = st.columns(2)
             with col1:
                 actualizar = st.form_submit_button("Actualizar")
@@ -68,11 +69,11 @@ with tabs[0]:
 
             if actualizar:
                 actualizar_producto(seleccionado["ID"], nuevo_nombre, nueva_unidad, nuevo_precio, nuevo_costo)
-                st.success("✅ Producto actualizado.")
-                st.experimental_rerun()
+                st.success("✅ Producto actualizado correctamente.")
+                st.rerun()
             if eliminar:
                 eliminar_producto(seleccionado["ID"])
-                st.success("🗑️ Producto eliminado.")
-                st.experimental_rerun()
+                st.success("🗑️ Producto eliminado correctamente.")
+                st.rerun()
     else:
         st.info("No hay productos registrados todavía.")
