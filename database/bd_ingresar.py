@@ -177,3 +177,23 @@ def eliminar_receta(receta_id):
     cursor.execute("DELETE FROM recetas WHERE id = ?", (receta_id,))
     conn.commit()
     conn.close()
+
+import sqlite3
+
+def crear_tabla_entradas_salidas():
+    conn = sqlite3.connect("panaderia.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS entradas_salidas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            insumo_id INTEGER,
+            tipo TEXT,  -- "Entrada", "Salida", "Salida por daño", etc.
+            cantidad REAL,
+            fecha_hora TEXT,
+            motivo TEXT DEFAULT '',
+            FOREIGN KEY(insumo_id) REFERENCES insumos(id)
+        )
+    """)
+    conn.commit()
+    conn.close()
+
