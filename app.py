@@ -101,11 +101,22 @@ with tabs[1]:
     st.subheader("📦 Gestión de Insumos")
     crear_tabla_insumos()
 
+    # Diccionario de unidades
+    unidades_dict = {
+        "Kilogramo (kg)": "kg",
+        "Gramo (g)": "g",
+        "Litro (l)": "l",
+        "Mililitro (ml)": "ml",
+        "Barra": "barra",
+        "Unidad": "unidad"
+    }
+
     # --- Formulario para agregar insumo ---
     with st.form("form_insumo"):
         st.markdown("### ➕ Agregar nuevo insumo")
         nombre_i = st.text_input("📛 Nombre del insumo")
-        unidad_i = st.selectbox("📐 Unidad", ["kg", "g", "l", "ml", "barra", "unidad"])
+        unidad_i_visible = st.selectbox("📐 Unidad", list(unidades_dict.keys()))
+        unidad_i = unidades_dict[unidad_i_visible]
         costo_unitario = st.number_input("💰 Costo unitario (₡)", min_value=0.0, format="%.2f")
         cantidad = st.number_input("📥 Cantidad inicial", min_value=0.0)
         submitted_i = st.form_submit_button("📦 Agregar")
@@ -142,10 +153,13 @@ with tabs[1]:
                 cantidad_original = insumo[4]
                 break
 
+        unidad_visible_original = [k for k, v in unidades_dict.items() if v == unidad_original][0]
+
         with st.form("editar_insumo"):
             nuevo_nombre_i = st.text_input("📛 Nombre", value=nombre_original)
-            nueva_unidad_i = st.selectbox("📐 Unidad", ["kg", "g", "l", "ml", "barra", "unidad"],
-                                           index=["kg", "g", "l", "ml", "barra", "unidad"].index(unidad_original))
+            nueva_unidad_visible = st.selectbox("📐 Unidad", list(unidades_dict.keys()),
+                                                index=list(unidades_dict.keys()).index(unidad_visible_original))
+            nueva_unidad = unidades_dict[nueva_unidad_visible]
             nuevo_costo_i = st.number_input("💰 Costo unitario (₡)", value=float(costo_original), format="%.2f")
             nueva_cantidad_i = st.number_input("📥 Cantidad", value=float(cantidad_original))
 
@@ -156,7 +170,7 @@ with tabs[1]:
                 eliminar_i = st.form_submit_button("🗑️ Eliminar")
 
             if actualizar_i:
-                actualizar_insumo(id_insumo, nuevo_nombre_i, nueva_unidad_i, nuevo_costo_i, nueva_cantidad_i)
+                actualizar_insumo(id_insumo, nuevo_nombre_i, nueva_unidad, nuevo_costo_i, nueva_cantidad_i)
                 st.success("✅ Insumo actualizado correctamente.")
                 st.rerun()
             if eliminar_i:
@@ -165,3 +179,4 @@ with tabs[1]:
                 st.rerun()
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
+
