@@ -209,6 +209,9 @@ from pathlib import Path
 from pathlib import Path
 from exportar_pdf import generar_pdf_receta
 
+from pathlib import Path
+from exportar_pdf import generar_pdf_receta
+
 # =============================
 # 📋 PESTAÑA DE RECETAS
 # =============================
@@ -216,7 +219,9 @@ with tabs[2]:
     st.subheader("📋 Gestión de Recetas")
     crear_tabla_recetas()
 
-    # --- Agregar nueva receta ---
+    # ========================
+    # ➕ Crear nueva receta
+    # ========================
     with st.form("form_receta"):
         st.markdown("### ➕ Crear nueva receta")
 
@@ -229,13 +234,10 @@ with tabs[2]:
             st.warning("⚠️ No hay insumos registrados. Agrega insumos primero.")
         else:
             st.markdown("### 🧺 Seleccionar ingredientes:")
-
             insumo_seleccionado = []
             for insumo in insumos:
-                insumo_id = insumo[0]
-                nombre = insumo[1]
-                unidad = insumo[2]
-                cantidad = st.number_input(f"{nombre} ({unidad})", min_value=0.0, step=0.1, key=f"insumo_{insumo_id}")
+                insumo_id, nombre, unidad, _, _ = insumo
+                cantidad = st.number_input(f"{nombre} ({unidad})", min_value=0.0, step=0.1, key=f"nuevo_{insumo_id}")
                 if cantidad > 0:
                     insumo_seleccionado.append((insumo_id, cantidad))
 
@@ -258,10 +260,64 @@ with tabs[2]:
                 else:
                     st.warning("⚠️ Debes ingresar un nombre y al menos un insumo.")
 
-    # --- Listado de recetas ---
-    st.markdown("### 📋 Recetas registradas")
+    # ========================
+    # ✏️ Editar receta existente
+    # ========================
+    st.markdown("### ✏️ Editar receta existente")
     recetas = obtener_recetas()
+    recetas_dict = {r[1]: r[0] for r in recetas}
 
+    if recetas:
+        receta_seleccionada = st.selectbox("Selecciona una receta para editar", list(recetas_dict.keys()))
+        receta_id = recetas_dict[receta_seleccionada]
+        receta_info = [r for r in recetas if r[0] == receta_id][0]
+        nombre_original, instrucciones_original = receta_info[1], receta_info[2]
+        detalles_actuales = obtener_detalle_receta(receta_id)
+
+        with st.form("editar_receta"):
+            nuevo_nombre = st.text_input("📛 Nombre", value=nombre_original)
+            nuevas_instrucciones = st.text_area("📖 Instrucciones", value=instrucciones_original or "")
+            nueva_imagen = st.file_uploader("📷 Reemplazar imagen (opcional)", type=["jpg", "jpeg", "png"])
+
+            st.markdown("### 🧺 Ingredientes:")
+            nuevos_insumos = []
+            insumos = obtener_insumos()
+            for insumo in insumos:
+                insumo_id, nombre, unidad, _, _ = insumo
+                cantidad_existente = next((c for n, c, u, _ in detalles_actuales if n == nombre), 0.0)
+                cantidad = st.number_input(
+                    f"{nombre} ({unidad})", value=float(cantidad_existente), min_value=0.0,
+                    step=0.1, key=f"edit_{insumo_id}"
+                )
+                if cantidad > 0:
+                    nuevos_insumos.append((insumo_id, cantidad))
+
+            guardar_cambios = st.form_submit_button("✅ Guardar cambios")
+
+            if guardar_cambios:
+                # Eliminar y reinsertar
+                eliminar_receta(receta_id)
+                agregar_receta(nuevo_nombre, nuevas_instrucciones, nuevos_insumos)
+
+                # Renombrar imagen si el nombre cambió
+                carpeta = Path("imagenes_recetas")
+                vieja = carpeta / f"{nombre_original.replace(' ', '_')}.jpg"
+                nueva = carpeta / f"{nuevo_nombre.replace(' ', '_')}.jpg"
+                if nueva_imagen:
+                    with open(nueva, "wb") as f:
+                        f.write(nueva_imagen.read())
+                elif vieja.exists():
+                    vieja.rename(nueva)
+
+                st.success("✅ Receta actualizada correctamente.")
+                st.rerun()
+    else:
+        st.info("ℹ️ No hay recetas registradas todavía.")
+
+    # ========================
+    # 📋 Mostrar recetas registradas
+    # ========================
+    st.markdown("### 📋 Recetas registradas")
     if recetas:
         for receta in recetas:
             receta_id, nombre, instrucciones = receta
@@ -269,7 +325,7 @@ with tabs[2]:
             costo_total = sum(cant * costo for _, cant, _, costo in detalles)
 
             with st.expander(f"🍰 {nombre} - Costo total: ₡{costo_total:,.2f}"):
-                # Mostrar imagen si existe
+                # Imagen
                 ruta_img = Path("imagenes_recetas") / f"{nombre.replace(' ', '_')}.jpg"
                 if ruta_img.exists():
                     st.image(str(ruta_img), caption=f"📷 {nombre}", width=300)
@@ -280,7 +336,6 @@ with tabs[2]:
                     st.markdown(f"- {nombre_insumo} — {cantidad} {unidad} — ₡{costo_unitario:,.2f} c/u")
 
                 col1, col2 = st.columns(2)
-
                 with col1:
                     pdf_bytes = generar_pdf_receta(nombre, instrucciones, detalles, costo_total)
                     st.download_button(
@@ -290,7 +345,6 @@ with tabs[2]:
                         mime="application/pdf",
                         key=f"pdf_{receta_id}"
                     )
-
                 with col2:
                     eliminar_btn = st.button(f"🗑️ Eliminar receta", key=f"eliminar_{receta_id}")
                     if eliminar_btn:
@@ -299,7 +353,5 @@ with tabs[2]:
                             ruta_img.unlink()
                         st.success(f"🗑️ Receta '{nombre}' eliminada.")
                         st.rerun()
-    else:
-        st.info("ℹ️ No hay recetas registradas todavía.")
 
 
