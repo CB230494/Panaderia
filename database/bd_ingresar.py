@@ -53,3 +53,55 @@ def eliminar_producto(id_producto):
     cursor.execute("DELETE FROM productos WHERE id = ?", (id_producto,))
     conn.commit()
     conn.close()
+
+# ===============================
+# CRUD PARA INSUMOS
+# ===============================
+
+# Crear tabla de insumos si no existe
+def crear_tabla_insumos():
+    conn, cursor = conectar()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS insumos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            unidad TEXT NOT NULL,
+            costo_unitario REAL NOT NULL,
+            cantidad REAL NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+# Agregar insumo
+def agregar_insumo(nombre, unidad, costo_unitario, cantidad):
+    conn, cursor = conectar()
+    cursor.execute("INSERT INTO insumos (nombre, unidad, costo_unitario, cantidad) VALUES (?, ?, ?, ?)",
+                   (nombre, unidad, costo_unitario, cantidad))
+    conn.commit()
+    conn.close()
+
+# Obtener insumos
+def obtener_insumos():
+    conn, cursor = conectar()
+    cursor.execute("SELECT * FROM insumos")
+    insumos = cursor.fetchall()
+    conn.close()
+    return insumos
+
+# Actualizar insumo
+def actualizar_insumo(id_insumo, nombre, unidad, costo_unitario, cantidad):
+    conn, cursor = conectar()
+    cursor.execute("""
+        UPDATE insumos SET nombre = ?, unidad = ?, costo_unitario = ?, cantidad = ?
+        WHERE id = ?
+    """, (nombre, unidad, costo_unitario, cantidad, id_insumo))
+    conn.commit()
+    conn.close()
+
+# Eliminar insumo
+def eliminar_insumo(id_insumo):
+    conn, cursor = conectar()
+    cursor.execute("DELETE FROM insumos WHERE id = ?", (id_insumo,))
+    conn.commit()
+    conn.close()
