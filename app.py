@@ -5,7 +5,7 @@ from bd_ingresar import (
     agregar_producto,
     obtener_productos,
     actualizar_producto,
-    eliminar_producto
+    eliminar_producto,
     crear_tabla_insumos,
     agregar_insumo,
     obtener_insumos,
