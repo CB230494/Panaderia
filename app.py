@@ -406,5 +406,58 @@ with tabs[3]:
         st.markdown("### 📊 Movimientos registrados (solo esta sesión)")
         df_mov = pd.DataFrame(st.session_state.movimientos)
         st.dataframe(df_mov, use_container_width=True)
+# =============================
+# 💰 PESTAÑA DE VENTAS
+# =============================
+with tabs[4]:
+    st.subheader("💰 Registro de Ventas de Productos")
+
+    productos = obtener_productos()
+    if not productos:
+        st.warning("⚠️ No hay productos disponibles. Agrega primero desde la pestaña de Productos.")
+    else:
+        nombres_productos = [f"{p[1]} ({p[2]})" for p in productos]
+        producto_elegido = st.selectbox("🧁 Selecciona el producto vendido", nombres_productos)
+
+        index = nombres_productos.index(producto_elegido)
+        id_producto, nombre, unidad, precio_venta, costo_unitario = productos[index]
+
+        st.markdown(f"**💵 Precio de venta:** ₡{precio_venta:,.2f}")
+        st.markdown(f"**🧾 Costo de elaboración:** ₡{costo_unitario:,.2f}")
+
+        cantidad_vendida = st.number_input("📦 Cantidad vendida", min_value=0.0, step=0.1)
+        registrar_venta = st.button("💾 Registrar venta")
+
+        if "ventas" not in st.session_state:
+            st.session_state.ventas = []
+
+        if registrar_venta:
+            ingreso_total = cantidad_vendida * precio_venta
+            costo_total = cantidad_vendida * costo_unitario
+            ganancia_total = ingreso_total - costo_total
+
+            st.session_state.ventas.append({
+                "Producto": nombre,
+                "Unidad": unidad,
+                "Cantidad": cantidad_vendida,
+                "Ingreso (₡)": ingreso_total,
+                "Costo (₡)": costo_total,
+                "Ganancia (₡)": ganancia_total
+            })
+
+            st.success("✅ Venta registrada correctamente.")
+            st.rerun()
+
+    # Mostrar resumen de ventas realizadas en la sesión
+    if "ventas" in st.session_state and st.session_state.ventas:
+        st.markdown("### 📋 Ventas registradas (sesión actual)")
+        df_ventas = pd.DataFrame(st.session_state.ventas)
+        st.dataframe(df_ventas, use_container_width=True)
+
+        total_ingresos = df_ventas["Ingreso (₡)"].sum()
+        total_ganancias = df_ventas["Ganancia (₡)"].sum()
+
+        st.markdown(f"**💵 Total ingresos:** ₡{total_ingresos:,.2f}")
+        st.markdown(f"**📈 Total ganancias:** ₡{total_ganancias:,.2f}")
 
 
