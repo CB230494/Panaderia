@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from bd_ingresar import (
+from database.bd_ingresar import (
     crear_tabla_productos,
     agregar_producto,
     obtener_productos,
@@ -12,6 +12,7 @@ from bd_ingresar import (
     actualizar_insumo,
     eliminar_insumo
 )
+
 
 st.set_page_config(page_title="Panadería Moderna", layout="wide")
 st.title("🥐 Sistema de Gestión - Panadería Moderna")
