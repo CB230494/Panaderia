@@ -20,26 +20,29 @@ if "pagina" not in st.session_state:
 st.markdown("""
     <style>
         body, .main { background-color: #121212; color: white; }
-        h1, h2, h3 { color: #00ffcc; }
+        h1, h2, h3 { color: #00ffcc; font-size: 32px; }
         .stButton>button {
             background-color: #00ffcc !important;
             color: black !important;
+            font-size: 24px !important;
+            font-weight: bold !important;
+            padding: 30px 30px;
             border: none;
-            padding: 25px 30px;
-            font-size: 22px;
-            font-weight: bold;
-            border-radius: 12px;
+            border-radius: 16px;
             width: 100%;
+            box-shadow: 4px 4px 10px rgba(0, 255, 204, 0.3);
+            transition: all 0.2s ease-in-out;
         }
         .stButton>button:hover {
             background-color: #00e6b8 !important;
+            box-shadow: 6px 6px 16px rgba(0, 255, 204, 0.5);
             transform: scale(1.02);
         }
         .stDataFrame th, .stDataFrame td {
-            font-size: 16px !important;
+            font-size: 18px !important;
         }
         .stSelectbox label, .stTextInput label, .stNumberInput label {
-            font-size: 18px !important;
+            font-size: 20px !important;
             color: #00ffcc;
         }
     </style>
@@ -56,7 +59,7 @@ with st.sidebar:
         styles={
             "container": {"padding": "5px", "background-color": "#121212"},
             "icon": {"color": "#00ffcc", "font-size": "20px"},
-            "nav-link": {"color": "#ffffff", "font-size": "16px", "text-align": "left", "margin": "2px"},
+            "nav-link": {"color": "#ffffff", "font-size": "18px", "text-align": "left", "margin": "2px"},
             "nav-link-selected": {"background-color": "#00ffcc", "color": "#121212", "font-weight": "bold"},
         }
     )
@@ -68,7 +71,7 @@ crear_tabla_recetas()
 
 # === INICIO ===
 if st.session_state.pagina == "Inicio":
-    st.markdown("## Sistema de Gestión - Panadería ")
+    st.markdown("## 📊 Sistema de Gestión - Panadería Moderna")
     st.markdown("### Selecciona una opción para comenzar:")
 
     col1, col2, col3 = st.columns(3)
@@ -174,6 +177,7 @@ if st.session_state.pagina == "Productos":
                 st.rerun()
     else:
         st.info("ℹ️ No hay productos registrados todavía.")
+
 
 # =============================
 # 📦 PESTAÑA DE INSUMOS
