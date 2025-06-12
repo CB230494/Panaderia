@@ -14,35 +14,36 @@ def crear_tabla_productos():
             nombre TEXT NOT NULL,
             unidad TEXT NOT NULL,
             precio_venta REAL NOT NULL,
-            costo REAL NOT NULL
+            costo REAL NOT NULL,
+            stock INTEGER DEFAULT 0
         )
     """)
     conn.commit()
     conn.close()
 
-def agregar_producto(nombre, unidad, precio_venta, costo):
+def agregar_producto(nombre, unidad, precio_venta, costo, stock=0):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO productos (nombre, unidad, precio_venta, costo) VALUES (?, ?, ?, ?)",
-                   (nombre, unidad, precio_venta, costo))
+    cursor.execute("INSERT INTO productos (nombre, unidad, precio_venta, costo, stock) VALUES (?, ?, ?, ?, ?)",
+                   (nombre, unidad, precio_venta, costo, stock))
     conn.commit()
     conn.close()
 
 def obtener_productos():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, nombre, unidad, precio_venta, costo FROM productos")
+    cursor.execute("SELECT id, nombre, unidad, precio_venta, costo, stock FROM productos")
     productos = cursor.fetchall()
     conn.close()
     return productos
 
-def actualizar_producto(id_producto, nombre, unidad, precio_venta, costo):
+def actualizar_producto(id_producto, nombre, unidad, precio_venta, costo, stock):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        UPDATE productos SET nombre = ?, unidad = ?, precio_venta = ?, costo = ?
+        UPDATE productos SET nombre = ?, unidad = ?, precio_venta = ?, costo = ?, stock = ?
         WHERE id = ?
-    """, (nombre, unidad, precio_venta, costo, id_producto))
+    """, (nombre, unidad, precio_venta, costo, stock, id_producto))
     conn.commit()
     conn.close()
 
@@ -52,6 +53,7 @@ def eliminar_producto(id_producto):
     cursor.execute("DELETE FROM productos WHERE id = ?", (id_producto,))
     conn.commit()
     conn.close()
+
 
 # ========== INSUMOS ==========
 def crear_tabla_insumos():
