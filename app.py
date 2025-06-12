@@ -182,11 +182,10 @@ if st.session_state.pagina == "Productos":
 # =============================
 # 📦 PESTAÑA DE INSUMOS
 # =============================
-with tabs[1]:
-    st.subheader("📦 Gestión de Insumos")
-    crear_tabla_insumos()
+# === INSUMOS ===
+if st.session_state.pagina == "Insumos":
+    st.subheader("🚚 Gestión de Insumos")
 
-    # Diccionario de unidades
     unidades_dict = {
         "Kilogramo (kg)": "kg",
         "Gramo (g)": "g",
@@ -196,15 +195,14 @@ with tabs[1]:
         "Unidad": "unidad"
     }
 
-    # --- Formulario para agregar insumo ---
     with st.form("form_agregar_insumo"):
         st.markdown("### ➕ Agregar nuevo insumo")
-        nombre_i = st.text_input("📛 Nombre del insumo")
-        unidad_i_visible = st.selectbox("📐 Unidad", list(unidades_dict.keys()))
+        nombre_i = st.text_input("Nombre del insumo")
+        unidad_i_visible = st.selectbox("Unidad", list(unidades_dict.keys()))
         unidad_i = unidades_dict[unidad_i_visible]
-        costo_unitario = st.number_input("💰 Costo unitario (₡)", min_value=0.0, format="%.2f")
-        cantidad = st.number_input("📥 Cantidad inicial", min_value=0.0)
-        submitted_i = st.form_submit_button("📦 Agregar")
+        costo_unitario = st.number_input("Costo total (₡)", min_value=0.0, format="%.2f")
+        cantidad = st.number_input("Cantidad total adquirida", min_value=0.0)
+        submitted_i = st.form_submit_button("Agregar")
 
         if submitted_i:
             if nombre_i and unidad_i:
@@ -214,26 +212,34 @@ with tabs[1]:
             else:
                 st.warning("⚠️ Debes completar todos los campos.")
 
-    # --- Listado de insumos ---
     st.markdown("### 📋 Lista de insumos")
     insumos = obtener_insumos()
 
     if insumos:
-        df_i = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Unitario", "Cantidad"])
+        df_i = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Total", "Cantidad"])
 
-        # Mostrar unidad con nombre legible
+        # Mapear unidad visible
         unidad_legible = {v: k for k, v in unidades_dict.items()}
-        df_i["Unidad"] = df_i["Unidad"].map(unidad_legible)
+        df_i["Unidad Visible"] = df_i["Unidad"].map(unidad_legible)
 
-        # Calcular total
-        df_i["Total (₡)"] = df_i["Costo Unitario"] * df_i["Cantidad"]
-        st.dataframe(df_i, use_container_width=True)
+        # Calcular costo por unidad base
+        def calcular_costo_base(row):
+            if row["Unidad"] in ["kg", "l"]:
+                return row["Costo Total"] / (row["Cantidad"] * 1000) if row["Cantidad"] > 0 else 0
+            elif row["Unidad"] in ["g", "ml", "barra", "unidad"]:
+                return row["Costo Total"] / row["Cantidad"] if row["Cantidad"] > 0 else 0
+            return 0
 
-        # --- Edición o eliminación ---
+        df_i["₡ por unidad base"] = df_i.apply(calcular_costo_base, axis=1)
+        df_i["₡ por unidad base"] = df_i["₡ por unidad base"].map(lambda x: f"₡{x:.2f}")
+
+        df_i.rename(columns={"Costo Total": "Costo Total (₡)", "Unidad Visible": "Unidad"}, inplace=True)
+        df_i.drop(columns=["Unidad"], inplace=True)
+        st.dataframe(df_i[["ID", "Nombre", "Unidad", "Costo Total (₡)", "Cantidad", "₡ por unidad base"]], use_container_width=True)
+
         st.markdown("### ✏️ Editar o eliminar un insumo")
-
         nombres_insumos = [insumo[1] for insumo in insumos]
-        seleccion_i = st.selectbox("🔽 Seleccionar insumo por nombre", nombres_insumos)
+        seleccion_i = st.selectbox("Seleccionar insumo por nombre", nombres_insumos)
 
         for insumo in insumos:
             if insumo[1] == seleccion_i:
@@ -247,18 +253,18 @@ with tabs[1]:
         unidad_visible_original = [k for k, v in unidades_dict.items() if v == unidad_original][0]
 
         with st.form("form_editar_insumo"):
-            nuevo_nombre_i = st.text_input("📛 Nombre", value=nombre_original)
-            nueva_unidad_visible = st.selectbox("📐 Unidad", list(unidades_dict.keys()),
+            nuevo_nombre_i = st.text_input("Nombre", value=nombre_original)
+            nueva_unidad_visible = st.selectbox("Unidad", list(unidades_dict.keys()),
                                                 index=list(unidades_dict.keys()).index(unidad_visible_original))
             nueva_unidad = unidades_dict[nueva_unidad_visible]
-            nuevo_costo_i = st.number_input("💰 Costo unitario (₡)", value=float(costo_original), format="%.2f")
-            nueva_cantidad_i = st.number_input("📥 Cantidad", value=float(cantidad_original))
+            nuevo_costo_i = st.number_input("Costo total (₡)", value=float(costo_original), format="%.2f")
+            nueva_cantidad_i = st.number_input("Cantidad", value=float(cantidad_original))
 
             col1, col2 = st.columns(2)
             with col1:
-                actualizar_i = st.form_submit_button("✅ Actualizar")
+                actualizar_i = st.form_submit_button("Actualizar")
             with col2:
-                eliminar_i = st.form_submit_button("🗑️ Eliminar")
+                eliminar_i = st.form_submit_button("Eliminar")
 
             if actualizar_i:
                 actualizar_insumo(id_insumo, nuevo_nombre_i, nueva_unidad, nuevo_costo_i, nueva_cantidad_i)
@@ -270,6 +276,7 @@ with tabs[1]:
                 st.rerun()
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
+
 # =============================
 # 📋 PESTAÑA DE RECETAS
 # =============================
