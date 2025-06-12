@@ -207,7 +207,6 @@ if st.session_state.pagina == "Insumos":
             if nombre_i and unidad_i:
                 agregar_insumo(nombre_i, unidad_i, costo_unitario, cantidad)
 
-                # Calcular desglose inmediato
                 if unidad_i in ["kg", "l"]:
                     unidades = cantidad * 1000
                     tipo_base = "gramo" if unidad_i == "kg" else "mililitro"
@@ -240,10 +239,10 @@ if st.session_state.pagina == "Insumos":
         df_i["₡ por unidad base"] = df_i.apply(calcular_costo_base, axis=1)
         df_i["₡ por unidad base"] = df_i["₡ por unidad base"].map(lambda x: f"₡{x:.2f}")
 
-        df_i.rename(columns={"Costo Total": "Costo Total (₡)", "Unidad Visible": "Unidad"}, inplace=True)
-        df_i.drop(columns=["Unidad"], inplace=True)
+        # Usar Unidad Visible para mostrar nombres legibles y mantener "Unidad" original para edición
+        df_i.rename(columns={"Unidad Visible": "Unidad Mostrada", "Costo Total": "Costo Total (₡)"}, inplace=True)
 
-        st.dataframe(df_i[["ID", "Nombre", "Unidad", "Costo Total (₡)", "Cantidad", "₡ por unidad base"]], use_container_width=True)
+        st.dataframe(df_i[["ID", "Nombre", "Unidad Mostrada", "Costo Total (₡)", "Cantidad", "₡ por unidad base"]], use_container_width=True)
 
         st.markdown("### ✏️ Editar o eliminar un insumo")
         nombres_insumos = [insumo[1] for insumo in insumos]
@@ -284,6 +283,7 @@ if st.session_state.pagina == "Insumos":
                 st.rerun()
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
+
 # =============================
 # 📋 PESTAÑA DE RECETAS
 # =============================
