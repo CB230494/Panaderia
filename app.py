@@ -12,6 +12,10 @@ from database.bd_ingresar import (
 # === CONFIGURACIÓN GENERAL ===
 st.set_page_config(page_title="Panadería Moderna", layout="wide")
 
+# === INICIALIZAR ESTADO DE NAVEGACIÓN
+if "pagina" not in st.session_state:
+    st.session_state.pagina = "Inicio"
+
 # === ESTILO PERSONALIZADO ===
 st.markdown("""
     <style>
@@ -31,24 +35,24 @@ st.markdown("""
             background-color: #00e6b8 !important;
             transform: scale(1.02);
         }
-        .boton-row {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-            justify-content: center;
-            margin-top: 40px;
+        .stDataFrame th, .stDataFrame td {
+            font-size: 16px !important;
+        }
+        .stSelectbox label, .stTextInput label, .stNumberInput label {
+            font-size: 18px !important;
+            color: #00ffcc;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# === MENÚ LATERAL COLAPSABLE ===
+# === MENÚ LATERAL ===
 with st.sidebar:
-    selected = option_menu(
+    st.session_state.pagina = option_menu(
         "Navegación",
         ["Inicio", "Productos", "Insumos", "Recetas", "Entradas/Salidas", "Ventas", "Balance"],
-        icons=["house", "box", "archive", "clipboard", "arrow-left-right", "currency-dollar", "bar-chart"],
+        icons=["house", "archive", "truck", "file-earmark-text", "arrow-left-right", "wallet", "graph-up"],
         menu_icon="list",
-        default_index=0,
+        default_index=["Inicio", "Productos", "Insumos", "Recetas", "Entradas/Salidas", "Ventas", "Balance"].index(st.session_state.pagina),
         styles={
             "container": {"padding": "5px", "background-color": "#121212"},
             "icon": {"color": "#00ffcc", "font-size": "20px"},
@@ -63,45 +67,50 @@ crear_tabla_insumos()
 crear_tabla_recetas()
 
 # === INICIO ===
-if selected == "Inicio":
-    st.markdown("## 🥐 Sistema de Gestión - Panadería Moderna")
+if st.session_state.pagina == "Inicio":
+    st.markdown("## 📊 Sistema de Gestión - Panadería Moderna")
     st.markdown("### Selecciona una opción para comenzar:")
 
-    with st.container():
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("🧁 Productos"):
-                selected = "Productos"
-        with col2:
-            if st.button("📦 Insumos"):
-                selected = "Insumos"
-        with col3:
-            if st.button("📋 Recetas"):
-                selected = "Recetas"
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("📦 Productos"):
+            st.session_state.pagina = "Productos"
+            st.rerun()
+    with col2:
+        if st.button("🚚 Insumos"):
+            st.session_state.pagina = "Insumos"
+            st.rerun()
+    with col3:
+        if st.button("📋 Recetas"):
+            st.session_state.pagina = "Recetas"
+            st.rerun()
 
-        col4, col5, col6 = st.columns(3)
-        with col4:
-            if st.button("📤 Entradas/Salidas"):
-                selected = "Entradas/Salidas"
-        with col5:
-            if st.button("💰 Ventas"):
-                selected = "Ventas"
-        with col6:
-            if st.button("📊 Balance"):
-                selected = "Balance"
+    col4, col5, col6 = st.columns(3)
+    with col4:
+        if st.button("🔄 Entradas/Salidas"):
+            st.session_state.pagina = "Entradas/Salidas"
+            st.rerun()
+    with col5:
+        if st.button("💵 Ventas"):
+            st.session_state.pagina = "Ventas"
+            st.rerun()
+    with col6:
+        if st.button("📈 Balance"):
+            st.session_state.pagina = "Balance"
+            st.rerun()
 
 # === PRODUCTOS ===
-if selected == "Productos":
-    st.subheader("🧁 Gestión de Productos")
+if st.session_state.pagina == "Productos":
+    st.subheader("📦 Gestión de Productos")
 
     with st.form("form_agregar_producto"):
         st.markdown("### ➕ Agregar nuevo producto")
-        nombre = st.text_input("📛 Nombre del producto")
-        unidad = st.selectbox("📦 Unidad", ["unidad", "porción", "pieza", "queque", "paquete"])
-        precio_venta = st.number_input("💰 Precio de venta (₡)", min_value=0.0, format="%.2f")
-        costo = st.number_input("🧾 Costo de elaboración (₡)", min_value=0.0, format="%.2f")
-        stock = st.number_input("📦 Cantidad en stock", min_value=0, step=1)
-        submitted = st.form_submit_button("🍞 Agregar")
+        nombre = st.text_input("Nombre del producto")
+        unidad = st.selectbox("Unidad", ["unidad", "porción", "pieza", "queque", "paquete"])
+        precio_venta = st.number_input("Precio de venta (₡)", min_value=0.0, format="%.2f")
+        costo = st.number_input("Costo de elaboración (₡)", min_value=0.0, format="%.2f")
+        stock = st.number_input("Cantidad en stock", min_value=0, step=1)
+        submitted = st.form_submit_button("Agregar")
 
         if submitted:
             if nombre and unidad:
@@ -129,7 +138,7 @@ if selected == "Productos":
 
         st.markdown("### ✏️ Editar o eliminar un producto")
         nombres_disponibles = [producto[1] for producto in productos]
-        seleccion = st.selectbox("🔽 Seleccionar producto por nombre", nombres_disponibles)
+        seleccion = st.selectbox("Seleccionar producto por nombre", nombres_disponibles)
 
         for producto in productos:
             if producto[1] == seleccion:
@@ -142,18 +151,18 @@ if selected == "Productos":
                 break
 
         with st.form("form_editar_producto"):
-            nuevo_nombre = st.text_input("🍥 Nombre", value=nombre_original)
-            nueva_unidad = st.selectbox("📦 Unidad", ["unidad", "porción", "pieza", "queque", "paquete"],
+            nuevo_nombre = st.text_input("Nombre", value=nombre_original)
+            nueva_unidad = st.selectbox("Unidad", ["unidad", "porción", "pieza", "queque", "paquete"],
                                         index=["unidad", "porción", "pieza", "queque", "paquete"].index(unidad_original))
-            nuevo_precio = st.number_input("💰 Precio de venta (₡)", value=float(precio_original), format="%.2f")
-            nuevo_costo = st.number_input("🧾 Costo de elaboración (₡)", value=float(costo_original), format="%.2f")
-            nuevo_stock = st.number_input("📦 Stock disponible", value=int(stock_original), step=1)
+            nuevo_precio = st.number_input("Precio de venta (₡)", value=float(precio_original), format="%.2f")
+            nuevo_costo = st.number_input("Costo de elaboración (₡)", value=float(costo_original), format="%.2f")
+            nuevo_stock = st.number_input("Stock disponible", value=int(stock_original), step=1)
 
             col1, col2 = st.columns(2)
             with col1:
-                actualizar = st.form_submit_button("✅ Actualizar")
+                actualizar = st.form_submit_button("Actualizar")
             with col2:
-                eliminar = st.form_submit_button("🗑️ Eliminar")
+                eliminar = st.form_submit_button("Eliminar")
 
             if actualizar:
                 actualizar_producto(id_producto, nuevo_nombre, nueva_unidad, nuevo_precio, nuevo_costo, nuevo_stock)
@@ -165,8 +174,6 @@ if selected == "Productos":
                 st.rerun()
     else:
         st.info("ℹ️ No hay productos registrados todavía.")
-
-
 
 # =============================
 # 📦 PESTAÑA DE INSUMOS
