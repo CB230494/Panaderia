@@ -15,7 +15,6 @@ st.set_page_config(page_title="Panadería Moderna", layout="wide")
 # === INICIALIZAR ESTADO DE NAVEGACIÓN
 if "pagina" not in st.session_state:
     st.session_state.pagina = "Inicio"
-if st.session_state.pagina == "Recetas":
 
 # === ESTILO PERSONALIZADO ===
 st.markdown("""
