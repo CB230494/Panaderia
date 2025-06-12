@@ -207,15 +207,15 @@ if st.session_state.pagina == "Insumos":
             if nombre_i and unidad_i:
                 agregar_insumo(nombre_i, unidad_i, costo_unitario, cantidad)
 
-                # Calcular y mostrar desglose inmediato
+                # Calcular desglose inmediato
                 if unidad_i in ["kg", "l"]:
-                    unidad_base = 1000
+                    unidades = cantidad * 1000
                     tipo_base = "gramo" if unidad_i == "kg" else "mililitro"
                 else:
-                    unidad_base = 1
+                    unidades = cantidad
                     tipo_base = unidad_i
 
-                precio_por_unidad = costo_unitario / (cantidad * unidad_base) if cantidad > 0 else 0
+                precio_por_unidad = costo_unitario / unidades if unidades > 0 else 0
                 st.success(f"✅ Insumo '{nombre_i}' agregado correctamente. Cada {tipo_base} cuesta ₡{precio_por_unidad:.2f}")
                 st.rerun()
             else:
@@ -284,8 +284,6 @@ if st.session_state.pagina == "Insumos":
                 st.rerun()
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
-
-
 # =============================
 # 📋 PESTAÑA DE RECETAS
 # =============================
