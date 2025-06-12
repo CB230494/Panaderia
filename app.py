@@ -182,7 +182,6 @@ if st.session_state.pagina == "Productos":
 # =============================
 # 📦 PESTAÑA DE INSUMOS
 # =============================
-# === INSUMOS ===
 if st.session_state.pagina == "Insumos":
     st.subheader("🚚 Gestión de Insumos")
 
@@ -207,7 +206,17 @@ if st.session_state.pagina == "Insumos":
         if submitted_i:
             if nombre_i and unidad_i:
                 agregar_insumo(nombre_i, unidad_i, costo_unitario, cantidad)
-                st.success(f"✅ Insumo '{nombre_i}' agregado correctamente.")
+
+                # Calcular y mostrar desglose inmediato
+                if unidad_i in ["kg", "l"]:
+                    unidad_base = 1000
+                    tipo_base = "gramo" if unidad_i == "kg" else "mililitro"
+                else:
+                    unidad_base = 1
+                    tipo_base = unidad_i
+
+                precio_por_unidad = costo_unitario / (cantidad * unidad_base) if cantidad > 0 else 0
+                st.success(f"✅ Insumo '{nombre_i}' agregado correctamente. Cada {tipo_base} cuesta ₡{precio_por_unidad:.2f}")
                 st.rerun()
             else:
                 st.warning("⚠️ Debes completar todos los campos.")
@@ -218,11 +227,9 @@ if st.session_state.pagina == "Insumos":
     if insumos:
         df_i = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Total", "Cantidad"])
 
-        # Mapear unidad visible
         unidad_legible = {v: k for k, v in unidades_dict.items()}
         df_i["Unidad Visible"] = df_i["Unidad"].map(unidad_legible)
 
-        # Calcular costo por unidad base
         def calcular_costo_base(row):
             if row["Unidad"] in ["kg", "l"]:
                 return row["Costo Total"] / (row["Cantidad"] * 1000) if row["Cantidad"] > 0 else 0
@@ -235,6 +242,7 @@ if st.session_state.pagina == "Insumos":
 
         df_i.rename(columns={"Costo Total": "Costo Total (₡)", "Unidad Visible": "Unidad"}, inplace=True)
         df_i.drop(columns=["Unidad"], inplace=True)
+
         st.dataframe(df_i[["ID", "Nombre", "Unidad", "Costo Total (₡)", "Cantidad", "₡ por unidad base"]], use_container_width=True)
 
         st.markdown("### ✏️ Editar o eliminar un insumo")
@@ -276,6 +284,7 @@ if st.session_state.pagina == "Insumos":
                 st.rerun()
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
+
 
 # =============================
 # 📋 PESTAÑA DE RECETAS
