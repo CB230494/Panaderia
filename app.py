@@ -1,7 +1,8 @@
 import streamlit as st
+from streamlit_option_menu import option_menu
 import pandas as pd
 from pathlib import Path
-from exportar_pdf import generar_pdf_receta  # Asegurate de tener este archivo en tu proyecto
+from exportar_pdf import generar_pdf_receta
 from database.bd_ingresar import (
     # Productos
     crear_tabla_productos,
@@ -25,23 +26,92 @@ from database.bd_ingresar import (
     eliminar_receta
 )
 
+# === CONFIGURACIÓN GENERAL ===
 st.set_page_config(page_title="Panadería Moderna", layout="wide")
-st.title("🥐 Sistema de Gestión - Panadería Moderna")
 
-# Crear tablas al iniciar
+# === ESTILO PERSONALIZADO ===
+st.markdown("""
+    <style>
+        body, .main {
+            background-color: #121212;
+            color: #ffffff;
+        }
+        h1, h2, h3, h4 {
+            color: #00ffcc;
+        }
+        .card {
+            background-color: #1e1e1e;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0px 0px 10px #00ffcc50;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            background-color: #00ffcc22;
+        }
+        .stButton>button {
+            background-color: #00ffcc;
+            color: black;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# === MENÚ LATERAL ===
+with st.sidebar:
+    selected = option_menu(
+        "Navegación",
+        ["Inicio", "Productos", "Insumos", "Recetas", "Entradas/Salidas", "Ventas", "Balance"],
+        icons=["house", "box", "boxes", "clipboard-check", "arrow-left-right", "cash-coin", "bar-chart-line"],
+        menu_icon="shop",
+        default_index=0,
+        styles={
+            "container": {"padding": "5px", "background-color": "#121212"},
+            "icon": {"color": "#00ffcc", "font-size": "20px"},
+            "nav-link": {"color": "#ffffff", "font-size": "16px", "text-align": "left", "margin": "2px"},
+            "nav-link-selected": {"background-color": "#00ffcc", "color": "#121212", "font-weight": "bold"},
+        }
+    )
+
+# === CREAR TABLAS AL INICIAR ===
 crear_tabla_productos()
 crear_tabla_insumos()
+crear_tabla_recetas()
 
-# Tabs del menú superior
-tabs = st.tabs(["🧁 Productos", "📦 Insumos", "📋 Recetas", "📤 Entradas/Salidas", "💰 Ventas", "📊 Balance"])
+# === INICIO ===
+if selected == "Inicio":
+    st.title("🥐 Sistema de Gestión - Panadería Moderna")
+    st.subheader("Selecciona una opción para comenzar:")
 
-# =============================
-# 🧁 PESTAÑA DE PRODUCTOS
-# =============================
-with tabs[0]:
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("🧁 Productos"):
+            selected = "Productos"
+    with col2:
+        if st.button("📦 Insumos"):
+            selected = "Insumos"
+    with col3:
+        if st.button("📋 Recetas"):
+            selected = "Recetas"
+
+    col4, col5, col6 = st.columns(3)
+    with col4:
+        if st.button("📤 Entradas/Salidas"):
+            selected = "Entradas/Salidas"
+    with col5:
+        if st.button("💰 Ventas"):
+            selected = "Ventas"
+    with col6:
+        if st.button("📊 Balance"):
+            selected = "Balance"
+
+# === PRODUCTOS ===
+if selected == "Productos":
     st.subheader("🧁 Gestión de Productos")
 
-    # --- Formulario para agregar producto ---
     with st.form("form_agregar_producto"):
         st.markdown("### ➕ Agregar nuevo producto")
         nombre = st.text_input("📛 Nombre del producto")
@@ -59,7 +129,6 @@ with tabs[0]:
             else:
                 st.warning("⚠️ Debes completar todos los campos.")
 
-    # --- Listado de productos ---
     st.markdown("### 📋 Lista de productos")
     productos = obtener_productos()
 
@@ -67,21 +136,16 @@ with tabs[0]:
         df = pd.DataFrame(productos, columns=["ID", "Nombre", "Unidad", "Precio Venta", "Costo", "Stock"])
         df["Ganancia (₡)"] = df["Precio Venta"] - df["Costo"]
 
-        # Formatear columnas monetarias sin ceros innecesarios
         df["Precio Venta"] = df["Precio Venta"].map(lambda x: f"₡{int(x)}" if x == int(x) else f"₡{x:.2f}")
         df["Costo"] = df["Costo"].map(lambda x: f"₡{int(x)}" if x == int(x) else f"₡{x:.2f}")
         df["Ganancia (₡)"] = df["Ganancia (₡)"].map(lambda x: f"₡{int(x)}" if x == int(x) else f"₡{x:.2f}")
 
-        # Aplicar estilos solo al stock
-        df_stock_raw = pd.DataFrame(productos, columns=["ID", "Nombre", "Unidad", "Precio Venta", "Costo", "Stock"])
         def color_stock(val):
             return 'background-color: red; color: white' if val < 5 else ''
         styled_df = df.style.applymap(color_stock, subset=["Stock"])
         st.dataframe(styled_df, use_container_width=True)
 
-        # --- Edición o eliminación ---
         st.markdown("### ✏️ Editar o eliminar un producto")
-
         nombres_disponibles = [producto[1] for producto in productos]
         seleccion = st.selectbox("🔽 Seleccionar producto por nombre", nombres_disponibles)
 
@@ -119,6 +183,7 @@ with tabs[0]:
                 st.rerun()
     else:
         st.info("ℹ️ No hay productos registrados todavía.")
+
 
 # =============================
 # 📦 PESTAÑA DE INSUMOS
