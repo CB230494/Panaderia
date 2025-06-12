@@ -48,11 +48,12 @@ with tabs[0]:
         unidad = st.selectbox("📦 Unidad", ["unidad", "porción", "pieza", "queque", "paquete"])
         precio_venta = st.number_input("💰 Precio de venta (₡)", min_value=0.0, format="%.2f")
         costo = st.number_input("🧾 Costo de elaboración (₡)", min_value=0.0, format="%.2f")
+        stock = st.number_input("📦 Cantidad en stock", min_value=0, step=1)
         submitted = st.form_submit_button("🍞 Agregar")
 
         if submitted:
             if nombre and unidad:
-                agregar_producto(nombre, unidad, precio_venta, costo)
+                agregar_producto(nombre, unidad, precio_venta, costo, stock)
                 st.success(f"✅ Producto '{nombre}' agregado correctamente.")
                 st.rerun()
             else:
@@ -63,9 +64,15 @@ with tabs[0]:
     productos = obtener_productos()
 
     if productos:
-        df = pd.DataFrame(productos, columns=["ID", "Nombre", "Unidad", "Precio Venta", "Costo"])
+        df = pd.DataFrame(productos, columns=["ID", "Nombre", "Unidad", "Precio Venta", "Costo", "Stock"])
         df["Ganancia (₡)"] = df["Precio Venta"] - df["Costo"]
-        st.dataframe(df, use_container_width=True)
+
+        def color_stock(val):
+            color = 'background-color: red; color: white' if val < 5 else ''
+            return color
+
+        styled_df = df.style.applymap(color_stock, subset=["Stock"])
+        st.dataframe(styled_df, use_container_width=True)
 
         # --- Edición o eliminación ---
         st.markdown("### ✏️ Editar o eliminar un producto")
@@ -80,6 +87,7 @@ with tabs[0]:
                 unidad_original = producto[2]
                 precio_original = producto[3]
                 costo_original = producto[4]
+                stock_original = producto[5]
                 break
 
         with st.form("form_editar_producto"):
@@ -88,6 +96,7 @@ with tabs[0]:
                                         index=["unidad", "porción", "pieza", "queque", "paquete"].index(unidad_original))
             nuevo_precio = st.number_input("💰 Precio de venta (₡)", value=float(precio_original), format="%.2f")
             nuevo_costo = st.number_input("🧾 Costo de elaboración (₡)", value=float(costo_original), format="%.2f")
+            nuevo_stock = st.number_input("📦 Stock disponible", value=int(stock_original), step=1)
 
             col1, col2 = st.columns(2)
             with col1:
@@ -96,7 +105,7 @@ with tabs[0]:
                 eliminar = st.form_submit_button("🗑️ Eliminar")
 
             if actualizar:
-                actualizar_producto(id_producto, nuevo_nombre, nueva_unidad, nuevo_precio, nuevo_costo)
+                actualizar_producto(id_producto, nuevo_nombre, nueva_unidad, nuevo_precio, nuevo_costo, nuevo_stock)
                 st.success("✅ Producto actualizado correctamente.")
                 st.rerun()
             if eliminar:
@@ -105,6 +114,7 @@ with tabs[0]:
                 st.rerun()
     else:
         st.info("ℹ️ No hay productos registrados todavía.")
+
 # =============================
 # 📦 PESTAÑA DE INSUMOS
 # =============================
