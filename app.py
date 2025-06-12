@@ -85,7 +85,7 @@ if st.session_state.pagina == "Inicio":
             st.rerun()
     with col3:
         if st.button("📋 Recetas"):
-            st.session_state.pagina = "Recetas"
+            if st.session_state.pagina == "Recetas":
             st.rerun()
 
     col4, col5, col6 = st.columns(3)
