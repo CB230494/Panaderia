@@ -67,10 +67,15 @@ with tabs[0]:
         df = pd.DataFrame(productos, columns=["ID", "Nombre", "Unidad", "Precio Venta", "Costo", "Stock"])
         df["Ganancia (₡)"] = df["Precio Venta"] - df["Costo"]
 
-        def color_stock(val):
-            color = 'background-color: red; color: white' if val < 5 else ''
-            return color
+        # Formatear columnas monetarias sin ceros innecesarios
+        df["Precio Venta"] = df["Precio Venta"].map(lambda x: f"₡{int(x)}" if x == int(x) else f"₡{x:.2f}")
+        df["Costo"] = df["Costo"].map(lambda x: f"₡{int(x)}" if x == int(x) else f"₡{x:.2f}")
+        df["Ganancia (₡)"] = df["Ganancia (₡)"].map(lambda x: f"₡{int(x)}" if x == int(x) else f"₡{x:.2f}")
 
+        # Aplicar estilos solo al stock
+        df_stock_raw = pd.DataFrame(productos, columns=["ID", "Nombre", "Unidad", "Precio Venta", "Costo", "Stock"])
+        def color_stock(val):
+            return 'background-color: red; color: white' if val < 5 else ''
         styled_df = df.style.applymap(color_stock, subset=["Stock"])
         st.dataframe(styled_df, use_container_width=True)
 
