@@ -287,13 +287,10 @@ if st.session_state.pagina == "Insumos":
 # =============================
 # 📋 PESTAÑA DE RECETAS
 # =============================
-with tabs[2]:
+if st.session_state.pagina == "Recetas":
     st.subheader("📋 Gestión de Recetas")
     crear_tabla_recetas()
 
-    # ========================
-    # ➕ Crear nueva receta
-    # ========================
     with st.form("form_nueva_receta"):
         st.markdown("### ➕ Crear nueva receta")
 
@@ -331,9 +328,6 @@ with tabs[2]:
                 else:
                     st.warning("⚠️ Debes ingresar un nombre y al menos un insumo.")
 
-    # ========================
-    # 📋 Ver y editar recetas
-    # ========================
     st.markdown("### 📋 Recetas registradas")
     recetas = obtener_recetas()
 
@@ -341,7 +335,7 @@ with tabs[2]:
         for receta in recetas:
             receta_id, nombre, instrucciones = receta
             detalles = obtener_detalle_receta(receta_id)
-            insumos_db = {i[0]: i for i in obtener_insumos()}  # id: (id, nombre, unidad, costo_unitario, cantidad)
+            insumos_db = {i[0]: i for i in obtener_insumos()}
 
             desglose = []
             costo_total = 0
@@ -428,6 +422,7 @@ with tabs[2]:
                             st.rerun()
     else:
         st.info("ℹ️ No hay recetas registradas todavía.")
+
 
 
 # =============================
