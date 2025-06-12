@@ -4,26 +4,9 @@ import pandas as pd
 from pathlib import Path
 from exportar_pdf import generar_pdf_receta
 from database.bd_ingresar import (
-    # Productos
-    crear_tabla_productos,
-    agregar_producto,
-    obtener_productos,
-    actualizar_producto,
-    eliminar_producto,
-
-    # Insumos
-    crear_tabla_insumos,
-    agregar_insumo,
-    obtener_insumos,
-    actualizar_insumo,
-    eliminar_insumo,
-
-    # Recetas
-    crear_tabla_recetas,
-    agregar_receta,
-    obtener_recetas,
-    obtener_detalle_receta,
-    eliminar_receta
+    crear_tabla_productos, agregar_producto, obtener_productos, actualizar_producto, eliminar_producto,
+    crear_tabla_insumos, agregar_insumo, obtener_insumos, actualizar_insumo, eliminar_insumo,
+    crear_tabla_recetas, agregar_receta, obtener_recetas, obtener_detalle_receta, eliminar_receta
 )
 
 # === CONFIGURACIÓN GENERAL ===
@@ -32,41 +15,39 @@ st.set_page_config(page_title="Panadería Moderna", layout="wide")
 # === ESTILO PERSONALIZADO ===
 st.markdown("""
     <style>
-        body, .main {
-            background-color: #121212;
-            color: #ffffff;
-        }
-        h1, h2, h3, h4 {
-            color: #00ffcc;
-        }
-        .card {
-            background-color: #1e1e1e;
-            padding: 30px;
-            border-radius: 20px;
-            box-shadow: 0px 0px 10px #00ffcc50;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        .card:hover {
-            background-color: #00ffcc22;
-        }
+        body, .main { background-color: #121212; color: white; }
+        h1, h2, h3 { color: #00ffcc; }
         .stButton>button {
-            background-color: #00ffcc;
-            color: black;
-            border-radius: 8px;
+            background-color: #00ffcc !important;
+            color: black !important;
+            border: none;
+            padding: 25px 30px;
+            font-size: 22px;
             font-weight: bold;
+            border-radius: 12px;
+            width: 100%;
+        }
+        .stButton>button:hover {
+            background-color: #00e6b8 !important;
+            transform: scale(1.02);
+        }
+        .boton-row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 40px;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# === MENÚ LATERAL ===
+# === MENÚ LATERAL COLAPSABLE ===
 with st.sidebar:
     selected = option_menu(
         "Navegación",
         ["Inicio", "Productos", "Insumos", "Recetas", "Entradas/Salidas", "Ventas", "Balance"],
-        icons=["house", "box", "boxes", "clipboard-check", "arrow-left-right", "cash-coin", "bar-chart-line"],
-        menu_icon="shop",
+        icons=["house", "box", "archive", "clipboard", "arrow-left-right", "currency-dollar", "bar-chart"],
+        menu_icon="list",
         default_index=0,
         styles={
             "container": {"padding": "5px", "background-color": "#121212"},
@@ -83,30 +64,31 @@ crear_tabla_recetas()
 
 # === INICIO ===
 if selected == "Inicio":
-    st.title("🥐 Sistema de Gestión - Panadería Moderna")
-    st.subheader("Selecciona una opción para comenzar:")
+    st.markdown("## 🥐 Sistema de Gestión - Panadería Moderna")
+    st.markdown("### Selecciona una opción para comenzar:")
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("🧁 Productos"):
-            selected = "Productos"
-    with col2:
-        if st.button("📦 Insumos"):
-            selected = "Insumos"
-    with col3:
-        if st.button("📋 Recetas"):
-            selected = "Recetas"
+    with st.container():
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🧁 Productos"):
+                selected = "Productos"
+        with col2:
+            if st.button("📦 Insumos"):
+                selected = "Insumos"
+        with col3:
+            if st.button("📋 Recetas"):
+                selected = "Recetas"
 
-    col4, col5, col6 = st.columns(3)
-    with col4:
-        if st.button("📤 Entradas/Salidas"):
-            selected = "Entradas/Salidas"
-    with col5:
-        if st.button("💰 Ventas"):
-            selected = "Ventas"
-    with col6:
-        if st.button("📊 Balance"):
-            selected = "Balance"
+        col4, col5, col6 = st.columns(3)
+        with col4:
+            if st.button("📤 Entradas/Salidas"):
+                selected = "Entradas/Salidas"
+        with col5:
+            if st.button("💰 Ventas"):
+                selected = "Ventas"
+        with col6:
+            if st.button("📊 Balance"):
+                selected = "Balance"
 
 # === PRODUCTOS ===
 if selected == "Productos":
@@ -183,6 +165,7 @@ if selected == "Productos":
                 st.rerun()
     else:
         st.info("ℹ️ No hay productos registrados todavía.")
+
 
 
 # =============================
