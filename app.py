@@ -12,10 +12,9 @@ from database.bd_ingresar import (
 # === CONFIGURACIÓN GENERAL ===
 st.set_page_config(page_title="Panadería Moderna", layout="wide")
 
-# === INICIALIZAR ESTADO DE NAVEGACIÓN
+# === INICIALIZAR ESTADO DE NAVEGACIÓN ===
 if "pagina" not in st.session_state:
     st.session_state.pagina = "Inicio"
-
 # === ESTILO PERSONALIZADO ===
 st.markdown("""
     <style>
@@ -63,7 +62,6 @@ with st.sidebar:
             "nav-link-selected": {"background-color": "#00ffcc", "color": "#121212", "font-weight": "bold"},
         }
     )
-
 # === CREAR TABLAS AL INICIAR ===
 crear_tabla_productos()
 crear_tabla_insumos()
@@ -85,7 +83,7 @@ if st.session_state.pagina == "Inicio":
             st.rerun()
     with col3:
         if st.button("📋 Recetas"):
-            if st.session_state.pagina == "Recetas":
+            st.session_state.pagina = "Recetas"
             st.rerun()
 
     col4, col5, col6 = st.columns(3)
@@ -101,7 +99,6 @@ if st.session_state.pagina == "Inicio":
         if st.button("📈 Balance"):
             st.session_state.pagina = "Balance"
             st.rerun()
-
 # === PRODUCTOS ===
 if st.session_state.pagina == "Productos":
     st.subheader("📦 Gestión de Productos")
@@ -138,7 +135,6 @@ if st.session_state.pagina == "Productos":
             return 'background-color: red; color: white' if val < 5 else ''
         styled_df = df.style.applymap(color_stock, subset=["Stock"])
         st.dataframe(styled_df, use_container_width=True)
-
         st.markdown("### ✏️ Editar o eliminar un producto")
         nombres_disponibles = [producto[1] for producto in productos]
         seleccion = st.selectbox("Seleccionar producto por nombre", nombres_disponibles)
@@ -177,10 +173,8 @@ if st.session_state.pagina == "Productos":
                 st.rerun()
     else:
         st.info("ℹ️ No hay productos registrados todavía.")
-
-
 # =============================
-# 📦 PESTAÑA DE INSUMOS
+# 🚚 PESTAÑA DE INSUMOS
 # =============================
 if st.session_state.pagina == "Insumos":
     st.subheader("🚚 Gestión de Insumos")
@@ -219,7 +213,6 @@ if st.session_state.pagina == "Insumos":
                 st.rerun()
             else:
                 st.warning("⚠️ Debes completar todos los campos.")
-
     st.markdown("### 📋 Lista de insumos")
     insumos = obtener_insumos()
 
@@ -239,11 +232,9 @@ if st.session_state.pagina == "Insumos":
         df_i["₡ por unidad base"] = df_i.apply(calcular_costo_base, axis=1)
         df_i["₡ por unidad base"] = df_i["₡ por unidad base"].map(lambda x: f"₡{x:.2f}")
 
-        # Usar Unidad Visible para mostrar nombres legibles y mantener "Unidad" original para edición
         df_i.rename(columns={"Unidad Visible": "Unidad Mostrada", "Costo Total": "Costo Total (₡)"}, inplace=True)
 
         st.dataframe(df_i[["ID", "Nombre", "Unidad Mostrada", "Costo Total (₡)", "Cantidad", "₡ por unidad base"]], use_container_width=True)
-
         st.markdown("### ✏️ Editar o eliminar un insumo")
         nombres_insumos = [insumo[1] for insumo in insumos]
         seleccion_i = st.selectbox("Seleccionar insumo por nombre", nombres_insumos)
@@ -283,7 +274,6 @@ if st.session_state.pagina == "Insumos":
                 st.rerun()
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
-
 # =============================
 # 📋 PESTAÑA DE RECETAS
 # =============================
@@ -328,7 +318,6 @@ if st.session_state.pagina == "Recetas":
                         f.write(imagen_receta.read())
                 st.success(f"✅ Receta '{nombre_receta}' guardada correctamente.")
                 st.rerun()
-
     st.markdown("### 📋 Recetas registradas")
     recetas = obtener_recetas()
 
@@ -384,7 +373,6 @@ if st.session_state.pagina == "Recetas":
                 with col3:
                     if st.button("✏️ Editar receta", key=f"editar_{receta_id}"):
                         st.session_state[f"editando_{receta_id}"] = True
-
             if st.session_state.get(f"editando_{receta_id}", False):
                 with st.form(f"form_edicion_{receta_id}"):
                     nuevo_nombre = st.text_input("📛 Nuevo nombre", value=nombre, key=f"nombre_{receta_id}")
@@ -423,6 +411,7 @@ if st.session_state.pagina == "Recetas":
                         st.rerun()
     else:
         st.info("ℹ️ No hay recetas registradas todavía.")
+
 
 
 
