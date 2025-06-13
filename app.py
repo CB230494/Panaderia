@@ -528,25 +528,35 @@ if st.session_state.pagina == "Ventas":
         producto_elegido = st.selectbox("🧁 Selecciona el producto vendido", nombres_productos)
 
         index = nombres_productos.index(producto_elegido)
-        id_producto, nombre, unidad, precio_venta, costo_unitario, _ = productos[index]
+        id_producto, nombre, unidad, precio_venta, costo_unitario, stock_disponible = productos[index]
 
         st.markdown(f"**💵 Precio de venta:** ₡{precio_venta:,.2f}")
         st.markdown(f"**🧾 Costo de elaboración:** ₡{costo_unitario:,.2f}")
+        st.markdown(f"**📦 Stock disponible:** {stock_disponible:.2f} {unidad}")
 
-        cantidad_vendida = st.number_input("📦 Cantidad vendida", min_value=0.0, step=0.1)
+        cantidad_vendida = st.number_input("📏 Cantidad vendida", min_value=0.0, step=0.1)
         registrar_venta = st.button("💾 Registrar venta")
 
-        if registrar_venta and cantidad_vendida > 0:
-            ingreso_total = round(cantidad_vendida * precio_venta, 2)
-            costo_total = round(cantidad_vendida * costo_unitario, 2)
-            ganancia_total = round(ingreso_total - costo_total, 2)
-            fecha_actual = datetime.now().strftime("%d/%m/%Y")
+        if registrar_venta:
+            if cantidad_vendida <= 0:
+                st.warning("⚠️ Debes ingresar una cantidad mayor a cero.")
+            elif cantidad_vendida > stock_disponible:
+                st.error("❌ No puedes vender más de lo que tienes en stock.")
+            else:
+                ingreso_total = round(cantidad_vendida * precio_venta, 2)
+                costo_total = round(cantidad_vendida * costo_unitario, 2)
+                ganancia_total = round(ingreso_total - costo_total, 2)
+                fecha_actual = datetime.now().strftime("%d/%m/%Y")
 
-            registrar_venta_en_db(nombre, unidad, cantidad_vendida, ingreso_total, costo_total, ganancia_total, fecha_actual)
-            st.success("✅ Venta registrada correctamente.")
-            st.rerun()
+                registrar_venta_en_db(nombre, unidad, cantidad_vendida, ingreso_total, costo_total, ganancia_total, fecha_actual)
 
-    # Mostrar resumen de ventas desde base de datos
+                # Descontar del stock
+                actualizar_producto(id_producto, nombre, unidad, precio_venta, costo_unitario, stock_disponible - cantidad_vendida)
+
+                st.success("✅ Venta registrada correctamente.")
+                st.rerun()
+
+    # Mostrar historial de ventas
     ventas = obtener_ventas()
     if ventas:
         st.markdown("### 📋 Historial de ventas")
@@ -564,8 +574,14 @@ if st.session_state.pagina == "Ventas":
         st.markdown(f"**💵 Total ingresos:** ₡{total_ingresos:,.2f}")
         st.markdown(f"**📈 Total ganancias:** ₡{total_ganancias:,.2f}")
 
-        st.markdown("### ✏️ Editar o eliminar una venta")
+        # Identificar producto más vendido
+        df_crudo = pd.DataFrame(ventas, columns=["ID", "Producto", "Unidad", "Cantidad", "Ingreso", "Costo", "Ganancia", "Fecha"])
+        producto_estrella = df_crudo.groupby("Producto")["Cantidad"].sum().idxmax()
+        cantidad_estrella = df_crudo.groupby("Producto")["Cantidad"].sum().max()
+        st.success(f"🌟 Producto estrella: **{producto_estrella}** con **{cantidad_estrella:.2f}** unidades vendidas")
 
+        # Editar/eliminar
+        st.markdown("### ✏️ Editar o eliminar una venta")
         ids_ventas = [f"{v[0]} - {v[1]} ({v[3]:.2f})" for v in ventas]
         seleccion_id = st.selectbox("Selecciona una venta", ids_ventas)
 
@@ -590,6 +606,7 @@ if st.session_state.pagina == "Ventas":
                 st.rerun()
     else:
         st.info("ℹ️ Aún no hay ventas registradas.")
+
 
 # =============================
 # 📊 PESTAÑA DE BALANCE
