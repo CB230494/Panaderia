@@ -24,12 +24,12 @@ def generar_pdf_receta(nombre, instrucciones, ingredientes, costo_total):
     else:
         pdf.set_y(20)
 
-    # Titulo
+    # Título
     pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 10, txt=f"Receta: {limpiar_texto(nombre)}", ln=True)
 
     pdf.set_font("Arial", "", 12)
-    pdf.cell(0, 10, txt=f"Costo total estimado: {costo_total:,.2f} colones", ln=True)
+    pdf.cell(0, 10, txt=f"Costo total estimado: ₡{costo_total:,.2f}", ln=True)
 
     # Ingredientes
     pdf.ln(5)
@@ -37,8 +37,11 @@ def generar_pdf_receta(nombre, instrucciones, ingredientes, costo_total):
     pdf.cell(0, 10, txt="Ingredientes:", ln=True)
 
     pdf.set_font("Arial", "", 12)
-    for nombre_insumo, cantidad, unidad, costo_unitario in ingredientes:
-        linea = f"- {nombre_insumo}: {cantidad} {unidad} (₡{costo_unitario:,.2f})"
+    for nombre_insumo, cantidad, unidad, costo_unitario, subtotal in ingredientes:
+        linea = (
+            f"- {nombre_insumo}: {cantidad} {unidad} "
+            f"(₡{costo_unitario:,.2f} c/u → Subtotal: ₡{subtotal:,.2f})"
+        )
         pdf.cell(0, 8, txt=limpiar_texto(linea), ln=True)
 
     # Instrucciones
@@ -52,3 +55,4 @@ def generar_pdf_receta(nombre, instrucciones, ingredientes, costo_total):
         pdf.multi_cell(0, 8, limpiar_texto(linea))
 
     return pdf.output(dest="S").encode("latin-1")
+
