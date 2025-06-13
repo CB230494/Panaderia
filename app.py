@@ -628,7 +628,6 @@ if st.session_state.pagina == "Balance":
     insumos = obtener_insumos()
     if insumos:
         df_insumos = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Unitario", "Cantidad"])
-        df_insumos["Total (₡)"] = df_insumos["Costo Unitario"] * df_insumos["Cantidad"]
 
         # Unidades legibles
         unidad_legible = {
@@ -641,11 +640,15 @@ if st.session_state.pagina == "Balance":
         }
         df_insumos["Unidad"] = df_insumos["Unidad"].map(unidad_legible)
 
-        total_inventario = df_insumos["Total (₡)"].sum()
+        df_insumos["Total (₡)"] = df_insumos["Costo Unitario"] * df_insumos["Cantidad"]
+        df_insumos["Costo Unitario"] = df_insumos["Costo Unitario"].apply(lambda x: f"₡{x:,.2f}")
+        df_insumos["Total (₡)"] = df_insumos["Total (₡)"].apply(lambda x: f"₡{x:,.2f}")
+
+        total_inventario_num = sum([i[3] * i[4] for i in insumos])  # cálculo bruto sin formato
 
         st.markdown("### 📦 Valor del inventario de insumos")
         st.dataframe(df_insumos[["Nombre", "Unidad", "Cantidad", "Costo Unitario", "Total (₡)"]], use_container_width=True)
-        st.markdown(f"**🔹 Total inventario:** ₡{total_inventario:,.2f}")
+        st.markdown(f"**🔹 Total inventario:** ₡{total_inventario_num:,.2f}")
     else:
         st.info("ℹ️ No hay insumos registrados.")
 
@@ -682,13 +685,14 @@ if st.session_state.pagina == "Balance":
             st.divider()
 
             st.markdown("### 📉 Comparativo resumen")
-            st.markdown(f"🔸 **Valor actual del inventario:** ₡{total_inventario:,.2f}")
+            st.markdown(f"🔸 **Valor actual del inventario:** ₡{total_inventario_num:,.2f}")
             st.markdown(f"🔸 **Ganancia generada en período:** ₡{total_ganancia:,.2f}")
-            balance_total = total_ingresos - total_inventario
+            balance_total = total_ingresos - total_inventario_num
             st.markdown(f"🔸 **Balance estimado (ingresos - inventario):** ₡{balance_total:,.2f}")
         else:
             st.info("ℹ️ No hay ventas registradas en el rango seleccionado.")
     else:
         st.info("ℹ️ No hay ventas registradas.")
+
 
 
