@@ -7,8 +7,10 @@ from database.bd_ingresar import (
     crear_tabla_productos, agregar_producto, obtener_productos, actualizar_producto, eliminar_producto,
     crear_tabla_insumos, agregar_insumo, obtener_insumos, actualizar_insumo, eliminar_insumo,
     crear_tabla_recetas, agregar_receta, obtener_recetas, obtener_detalle_receta, eliminar_receta,
-    crear_tabla_entradas_salidas, registrar_movimiento, obtener_historial_movimientos
+    crear_tabla_entradas_salidas, registrar_movimiento, obtener_historial_movimientos,
+    crear_tabla_ventas, registrar_venta_en_db, obtener_ventas, actualizar_venta, eliminar_venta
 )
+
 
 
 # === CONFIGURACIÓN GENERAL ===
