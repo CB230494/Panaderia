@@ -629,6 +629,18 @@ if st.session_state.pagina == "Balance":
     if insumos:
         df_insumos = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Unitario", "Cantidad"])
         df_insumos["Total (₡)"] = df_insumos["Costo Unitario"] * df_insumos["Cantidad"]
+
+        # Unidades legibles
+        unidad_legible = {
+            "kg": "kilogramos",
+            "g": "gramos",
+            "l": "litros",
+            "ml": "mililitros",
+            "barra": "barras",
+            "unidad": "unidades"
+        }
+        df_insumos["Unidad"] = df_insumos["Unidad"].map(unidad_legible)
+
         total_inventario = df_insumos["Total (₡)"].sum()
 
         st.markdown("### 📦 Valor del inventario de insumos")
