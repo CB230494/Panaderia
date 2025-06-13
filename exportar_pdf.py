@@ -5,9 +5,7 @@ import unicodedata
 def limpiar_texto(texto):
     if not texto:
         return ""
-    # Quita acentos y reemplaza caracteres especiales
-    texto = unicodedata.normalize("NFKD", texto).encode("ASCII", "ignore").decode("ASCII")
-    return texto
+    return unicodedata.normalize("NFKD", str(texto)).encode("ASCII", "ignore").decode("ASCII")
 
 def generar_pdf_receta(nombre, instrucciones, ingredientes, costo_total):
     pdf = FPDF()
@@ -39,8 +37,8 @@ def generar_pdf_receta(nombre, instrucciones, ingredientes, costo_total):
     pdf.set_font("Arial", "", 12)
     for nombre_insumo, cantidad, unidad, costo_unitario, subtotal in ingredientes:
         linea = (
-            f"- {nombre_insumo}: {cantidad} {unidad} "
-            f"(₡{costo_unitario:,.2f} c/u → Subtotal: ₡{subtotal:,.2f})"
+            f"- {nombre_insumo}: {cantidad:.2f} {unidad} "
+            f"(₡{costo_unitario:.2f} c/u → Subtotal: ₡{subtotal:,.2f})"
         )
         pdf.cell(0, 8, txt=limpiar_texto(linea), ln=True)
 
@@ -55,4 +53,5 @@ def generar_pdf_receta(nombre, instrucciones, ingredientes, costo_total):
         pdf.multi_cell(0, 8, limpiar_texto(linea))
 
     return pdf.output(dest="S").encode("latin-1")
+
 
