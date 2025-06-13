@@ -346,12 +346,11 @@ if st.session_state.pagina == "Recetas":
             for nombre_insumo, cantidad, unidad, _ in detalles:
                 for insumo in insumos_db.values():
                     if insumo[1] == nombre_insumo:
-                        costo_unitario = insumo[3]  # precio por unidad registrada
+                        costo_unitario = insumo[3]
                         unidad_insumo = insumo[2]
 
-                        # Calcular costo proporcional
                         if unidad_insumo in ["kg", "l"]:
-                            costo_por_base = costo_unitario / 1000  # precio por gramo o ml
+                            costo_por_base = costo_unitario / 1000
                             cantidad_en_base = cantidad * 1000 if unidad == unidad_insumo else cantidad
                         else:
                             costo_por_base = costo_unitario
@@ -376,24 +375,15 @@ if st.session_state.pagina == "Recetas":
                         f"(₡{costo_u:.2f} c/u → Subtotal: ₡{subtotal:,.2f})"
                     )
 
-                col1, col2, col3 = st.columns(3)
+                col1, col2 = st.columns(2)
                 with col1:
-                    pdf_bytes = generar_pdf_receta(nombre, instrucciones, desglose, costo_total)
-                    st.download_button(
-                        label="📄 Descargar PDF",
-                        data=pdf_bytes,
-                        file_name=f"{nombre}.pdf",
-                        mime="application/pdf",
-                        key=f"pdf_{receta_id}"
-                    )
-                with col2:
                     if st.button(f"🗑️ Eliminar receta", key=f"eliminar_{receta_id}"):
                         eliminar_receta(receta_id)
                         if ruta_img.exists():
                             ruta_img.unlink()
                         st.success(f"🗑️ Receta '{nombre}' eliminada.")
                         st.rerun()
-                with col3:
+                with col2:
                     if st.button("✏️ Editar receta", key=f"editar_{receta_id}"):
                         st.session_state[f"editando_{receta_id}"] = True
 
@@ -435,7 +425,6 @@ if st.session_state.pagina == "Recetas":
                         st.rerun()
     else:
         st.info("ℹ️ No hay recetas registradas todavía.")
-
 
 
 
