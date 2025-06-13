@@ -5,6 +5,7 @@ import unicodedata
 def limpiar_texto(texto):
     if not texto:
         return ""
+    # Convierte cualquier texto a string, normaliza, y elimina caracteres no ASCII
     return unicodedata.normalize("NFKD", str(texto)).encode("ASCII", "ignore").decode("ASCII")
 
 def generar_pdf_receta(nombre, instrucciones, ingredientes, costo_total):
@@ -12,7 +13,7 @@ def generar_pdf_receta(nombre, instrucciones, ingredientes, costo_total):
     pdf.add_page()
 
     # Imagen si existe
-    imagen_path = Path("imagenes_recetas") / f"{nombre.replace(' ', '_')}.jpg"
+    imagen_path = Path("imagenes_recetas") / f"{limpiar_texto(nombre).replace(' ', '_')}.jpg"
     if imagen_path.exists():
         try:
             pdf.image(str(imagen_path), x=10, y=10, w=40)
@@ -52,6 +53,13 @@ def generar_pdf_receta(nombre, instrucciones, ingredientes, costo_total):
     for linea in texto.split('\n'):
         pdf.multi_cell(0, 8, limpiar_texto(linea))
 
-    return pdf.output(dest="S").encode("latin-1")
+    # DEVOLVER BYTES PDF CON ENCUESTA LATIN-1 LIMPIA
+    contenido = pdf.output(dest="S")
+    try:
+        return contenido.encode("latin-1")
+    except UnicodeEncodeError:
+        # Fallback más seguro si aún hay caracteres raros
+        return limpiar_texto(contenido).encode("latin-1", errors="ignore")
+
 
 
