@@ -193,17 +193,27 @@ if st.session_state.pagina == "Insumos":
         nombre_i = st.text_input("Nombre del insumo")
         unidad_i_visible = st.selectbox("Unidad", list(unidades_dict.keys()))
         unidad_i = unidades_dict[unidad_i_visible]
-        costo_registrado = st.number_input("Costo total (₡)", min_value=0.0, format="%.2f")
-        cantidad = st.number_input("Cantidad total adquirida", min_value=0.0)
+        costo_unitario = st.number_input("Costo unitario (₡ por unidad)", min_value=0.0, format="%.2f")
+        cantidad = st.number_input("Cantidad adquirida (ej. 3 kg, 500 ml)", min_value=0.0)
         submitted_i = st.form_submit_button("Agregar")
 
         if submitted_i:
             if nombre_i and unidad_i and cantidad > 0:
-                agregar_insumo(nombre_i, unidad_i, costo_registrado, cantidad)
+                agregar_insumo(nombre_i, unidad_i, costo_unitario, cantidad)
 
-                precio_por_unidad = costo_registrado / cantidad
+                if unidad_i in ["kg", "l"]:
+                    costo_base = costo_unitario / 1000
+                    unidad_base = "gramo" if unidad_i == "kg" else "mililitro"
+                elif unidad_i in ["g", "ml"]:
+                    costo_base = costo_unitario
+                    unidad_base = unidad_i
+                else:
+                    costo_base = costo_unitario
+                    unidad_base = unidad_i
+
                 st.success(
-                    f"✅ Insumo '{nombre_i}' agregado correctamente. Costo registrado: ₡{costo_registrado:.2f} por {cantidad:.3f} {unidad_i} → ₡{precio_por_unidad:.2f} por unidad"
+                    f"✅ '{nombre_i}' agregado. Precio unitario: ₡{costo_unitario:.2f} por {unidad_i}. "
+                    f"Total comprado: {cantidad} {unidad_i} → ₡{costo_base:.4f} por {unidad_base}"
                 )
                 st.rerun()
             else:
@@ -213,19 +223,25 @@ if st.session_state.pagina == "Insumos":
     insumos = obtener_insumos()
 
     if insumos:
-        df_i = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Registrado", "Cantidad"])
+        df_i = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Unitario", "Cantidad"])
 
         unidad_legible = {v: k for k, v in unidades_dict.items()}
         df_i["Unidad Mostrada"] = df_i["Unidad"].map(unidad_legible)
 
-        df_i["₡ por unidad"] = df_i.apply(
-            lambda row: row["Costo Registrado"] / row["Cantidad"] if row["Cantidad"] > 0 else 0, axis=1
-        )
-        df_i["₡ por unidad"] = df_i["₡ por unidad"].map(lambda x: f"₡{x:.2f}")
+        def calcular_precio_base(row):
+            if row["Unidad"] in ["kg", "l"]:
+                return row["Costo Unitario"] / 1000
+            else:
+                return row["Costo Unitario"]
 
-        df_i.rename(columns={"Costo Registrado": "Costo Total (₡)"}, inplace=True)
+        df_i["₡ por unidad base"] = df_i.apply(calcular_precio_base, axis=1)
+        df_i["₡ por unidad base"] = df_i["₡ por unidad base"].map(lambda x: f"₡{x:.4f}")
 
-        st.dataframe(df_i[["ID", "Nombre", "Unidad Mostrada", "Costo Total (₡)", "Cantidad", "₡ por unidad"]], use_container_width=True)
+        df_i["Costo Total (₡)"] = df_i["Costo Unitario"] * df_i["Cantidad"]
+        df_i["Costo Total (₡)"] = df_i["Costo Total (₡)"].map(lambda x: f"₡{x:,.2f}")
+        df_i["Costo Unitario"] = df_i["Costo Unitario"].map(lambda x: f"₡{x:,.2f}")
+
+        st.dataframe(df_i[["ID", "Nombre", "Unidad Mostrada", "Costo Unitario", "Cantidad", "Costo Total (₡)", "₡ por unidad base"]], use_container_width=True)
 
         st.markdown("### ✏️ Editar o eliminar un insumo")
         nombres_insumos = [insumo[1] for insumo in insumos]
@@ -236,7 +252,7 @@ if st.session_state.pagina == "Insumos":
                 id_insumo = insumo[0]
                 nombre_original = insumo[1]
                 unidad_original = insumo[2]
-                costo_original = insumo[3]
+                costo_unitario_original = insumo[3]
                 cantidad_original = insumo[4]
                 break
 
@@ -247,8 +263,8 @@ if st.session_state.pagina == "Insumos":
             nueva_unidad_visible = st.selectbox("Unidad", list(unidades_dict.keys()),
                                                 index=list(unidades_dict.keys()).index(unidad_visible_original))
             nueva_unidad = unidades_dict[nueva_unidad_visible]
-            nuevo_costo_i = st.number_input("Costo total (₡)", value=float(costo_original), format="%.2f")
-            nueva_cantidad_i = st.number_input("Cantidad", value=float(cantidad_original))
+            nuevo_costo_unitario = st.number_input("Costo unitario (₡ por unidad)", value=float(costo_unitario_original), format="%.2f")
+            nueva_cantidad = st.number_input("Cantidad", value=float(cantidad_original))
 
             col1, col2 = st.columns(2)
             with col1:
@@ -257,7 +273,7 @@ if st.session_state.pagina == "Insumos":
                 eliminar_i = st.form_submit_button("Eliminar")
 
             if actualizar_i:
-                actualizar_insumo(id_insumo, nuevo_nombre_i, nueva_unidad, nuevo_costo_i, nueva_cantidad_i)
+                actualizar_insumo(id_insumo, nuevo_nombre_i, nueva_unidad, nuevo_costo_unitario, nueva_cantidad)
                 st.success("✅ Insumo actualizado correctamente.")
                 st.rerun()
             if eliminar_i:
@@ -266,6 +282,7 @@ if st.session_state.pagina == "Insumos":
                 st.rerun()
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
+
 
 
 # =============================
@@ -298,9 +315,7 @@ if st.session_state.pagina == "Recetas":
         submitted_receta = st.form_submit_button("🍽️ Guardar receta")
 
         if submitted_receta:
-            if not insumos:
-                st.warning("⚠️ No hay insumos disponibles para crear la receta.")
-            elif not nombre_receta or not insumo_seleccionado:
+            if not nombre_receta or not insumo_seleccionado:
                 st.warning("⚠️ Debes ingresar un nombre y al menos un insumo.")
             else:
                 agregar_receta(nombre_receta, instrucciones, insumo_seleccionado)
@@ -328,12 +343,19 @@ if st.session_state.pagina == "Recetas":
             for nombre_insumo, cantidad, unidad, _ in detalles:
                 for insumo in insumos_db.values():
                     if insumo[1] == nombre_insumo:
-                        costo_total_compra = insumo[3]
-                        cantidad_total = insumo[4]
-                        costo_unitario_real = costo_total_compra / cantidad_total if cantidad_total > 0 else 0
-                        subtotal = cantidad * costo_unitario_real
+                        costo_unitario = insumo[3]  # Costo por unidad completa (ej. kg)
+                        unidad_insumo = insumo[2]
+
+                        # Convertir a costo por base si es necesario
+                        if unidad_insumo in ["kg", "l"]:
+                            costo_por_base = costo_unitario / 1000  # por gramo o mililitro
+                        else:
+                            costo_por_base = costo_unitario
+
+                        subtotal = cantidad * costo_por_base
                         costo_total += subtotal
-                        desglose.append((nombre_insumo, cantidad, unidad, costo_unitario_real, subtotal))
+
+                        desglose.append((nombre_insumo, cantidad, unidad, costo_por_base, subtotal))
                         break
 
             with st.expander(f"🍰 {nombre} - Costo total: ₡{costo_total:,.2f}"):
@@ -405,6 +427,7 @@ if st.session_state.pagina == "Recetas":
                         st.rerun()
     else:
         st.info("ℹ️ No hay recetas registradas todavía.")
+
 
 
 
