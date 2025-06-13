@@ -6,8 +6,10 @@ from exportar_pdf import generar_pdf_receta
 from database.bd_ingresar import (
     crear_tabla_productos, agregar_producto, obtener_productos, actualizar_producto, eliminar_producto,
     crear_tabla_insumos, agregar_insumo, obtener_insumos, actualizar_insumo, eliminar_insumo,
-    crear_tabla_recetas, agregar_receta, obtener_recetas, obtener_detalle_receta, eliminar_receta
+    crear_tabla_recetas, agregar_receta, obtener_recetas, obtener_detalle_receta, eliminar_receta,
+    crear_tabla_entradas_salidas, registrar_movimiento, obtener_historial_movimientos
 )
+
 
 # === CONFIGURACIÓN GENERAL ===
 st.set_page_config(page_title="Panadería Moderna", layout="wide")
