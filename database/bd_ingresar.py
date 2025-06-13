@@ -216,4 +216,62 @@ def obtener_historial_movimientos():
     conn.close()
     return historial
 
+# ========== VENTAS ==========
+def crear_tabla_ventas():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ventas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            producto TEXT NOT NULL,
+            unidad TEXT,
+            cantidad REAL NOT NULL,
+            ingreso REAL NOT NULL,
+            costo REAL NOT NULL,
+            ganancia REAL NOT NULL,
+            fecha TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def registrar_venta_en_db(producto, unidad, cantidad, ingreso, costo, ganancia, fecha):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO ventas (producto, unidad, cantidad, ingreso, costo, ganancia, fecha)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (producto, unidad, cantidad, ingreso, costo, ganancia, fecha))
+    conn.commit()
+    conn.close()
+
+def obtener_ventas():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, producto, unidad, cantidad, ingreso, costo, ganancia, fecha
+        FROM ventas
+        ORDER BY fecha DESC
+    """)
+    ventas = cursor.fetchall()
+    conn.close()
+    return ventas
+
+def eliminar_venta(id_venta):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM ventas WHERE id = ?", (id_venta,))
+    conn.commit()
+    conn.close()
+
+def actualizar_venta(id_venta, cantidad, ingreso, costo, ganancia):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE ventas
+        SET cantidad = ?, ingreso = ?, costo = ?, ganancia = ?
+        WHERE id = ?
+    """, (cantidad, ingreso, costo, ganancia, id_venta))
+    conn.commit()
+    conn.close()
 
