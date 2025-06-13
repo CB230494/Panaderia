@@ -312,6 +312,7 @@ if st.session_state.pagina == "Recetas":
                         f.write(imagen_receta.read())
                 st.success(f"✅ Receta '{nombre_receta}' guardada correctamente.")
                 st.rerun()
+
     st.markdown("### 📋 Recetas registradas")
     recetas = obtener_recetas()
 
@@ -329,7 +330,7 @@ if st.session_state.pagina == "Recetas":
                     if insumo[1] == nombre_insumo:
                         costo_total_compra = insumo[3]
                         cantidad_total = insumo[4]
-                         costo_unitario_real = costo_total_compra / cantidad_total if cantidad_total > 0 else 0
+                        costo_unitario_real = costo_total_compra / cantidad_total if cantidad_total > 0 else 0
                         subtotal = cantidad * costo_unitario_real
                         costo_total += subtotal
                         desglose.append((nombre_insumo, cantidad, unidad, costo_unitario_real, subtotal))
@@ -365,6 +366,7 @@ if st.session_state.pagina == "Recetas":
                 with col3:
                     if st.button("✏️ Editar receta", key=f"editar_{receta_id}"):
                         st.session_state[f"editando_{receta_id}"] = True
+
             if st.session_state.get(f"editando_{receta_id}", False):
                 with st.form(f"form_edicion_{receta_id}"):
                     nuevo_nombre = st.text_input("📛 Nuevo nombre", value=nombre, key=f"nombre_{receta_id}")
