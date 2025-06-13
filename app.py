@@ -329,9 +329,7 @@ if st.session_state.pagina == "Recetas":
                     if insumo[1] == nombre_insumo:
                         costo_total_compra = insumo[3]
                         cantidad_total = insumo[4]
-                        unidad_base = 1000 if insumo[2] in ["kg", "l"] else 1
-                        cantidad_base = cantidad_total * unidad_base
-                        costo_unitario_real = costo_total_compra / cantidad_base if cantidad_base > 0 else 0
+                         costo_unitario_real = costo_total_compra / cantidad_total if cantidad_total > 0 else 0
                         subtotal = cantidad * costo_unitario_real
                         costo_total += subtotal
                         desglose.append((nombre_insumo, cantidad, unidad, costo_unitario_real, subtotal))
