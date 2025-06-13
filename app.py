@@ -439,7 +439,6 @@ from datetime import datetime
 with tabs[3]:
     st.subheader("📤 Registro de Entradas y Salidas de Insumos")
 
-    # Diccionario para mostrar nombres completos de unidad
     unidad_legible = {
         "kg": "kilogramos",
         "g": "gramos",
@@ -449,12 +448,10 @@ with tabs[3]:
         "unidad": "unidades"
     }
 
-    # Obtener insumos actuales
     insumos = obtener_insumos()
     if not insumos:
         st.warning("⚠️ No hay insumos disponibles. Agrega primero desde la pestaña de Insumos.")
     else:
-        # Selección del insumo
         nombres_insumos = [f"{insumo[1]} ({insumo[2]})" for insumo in insumos]
         insumo_elegido = st.selectbox("🔽 Selecciona el insumo", nombres_insumos)
 
@@ -462,46 +459,46 @@ with tabs[3]:
         insumo_id, nombre, unidad, costo_unitario, cantidad_actual = insumos[index]
         unidad_visible = unidad_legible.get(unidad, unidad)
 
-        st.markdown(f"**📦 Cantidad disponible:** {cantidad_actual} {unidad_visible}")
+        st.markdown(f"**📦 Cantidad disponible:** {cantidad_actual:.2f} {unidad_visible}")
 
-        # Formulario de movimiento
         tipo_movimiento = st.radio("📌 Tipo de movimiento", ["Entrada", "Salida"])
         cantidad = st.number_input("📏 Cantidad a registrar", min_value=0.0, step=0.1)
+        motivo = st.text_input("✍️ Motivo del movimiento (opcional)")
         registrar = st.button("💾 Registrar movimiento")
 
-        # Inicializar lista si no existe
-        if "movimientos" not in st.session_state:
-            st.session_state.movimientos = []
-
         if registrar:
-            if tipo_movimiento == "Entrada":
-                nueva_cantidad = cantidad_actual + cantidad
+            if tipo_movimiento == "Salida" and cantidad > cantidad_actual:
+                st.error("❌ No se puede realizar la salida. Cantidad insuficiente.")
+            elif cantidad == 0:
+                st.warning("⚠️ Ingresa una cantidad válida.")
             else:
-                if cantidad > cantidad_actual:
-                    st.error("❌ No se puede realizar la salida. Cantidad insuficiente.")
-                    st.stop()
-                nueva_cantidad = cantidad_actual - cantidad
+                registrar_movimiento(
+                    insumo_id=insumo_id,
+                    tipo=tipo_movimiento,
+                    cantidad=cantidad,
+                    fecha_hora=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    motivo=motivo
+                )
+                st.success(f"✅ {tipo_movimiento} registrada exitosamente.")
+                st.rerun()
 
-            # Actualizar insumo
-            actualizar_insumo(insumo_id, nombre, unidad, costo_unitario, nueva_cantidad)
-
-            # Guardar movimiento
-            st.session_state.movimientos.append({
-                "Fecha y hora": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "Insumo": nombre,
-                "Unidad": unidad_visible,
-                "Tipo": tipo_movimiento,
-                "Cantidad": cantidad
-            })
-
-            st.success(f"✅ {tipo_movimiento} registrada exitosamente.")
-            st.rerun()
-
-    # Mostrar tabla de movimientos
-    if "movimientos" in st.session_state and st.session_state.movimientos:
-        st.markdown("### 📊 Movimientos registrados (solo esta sesión)")
-        df_mov = pd.DataFrame(st.session_state.movimientos)
+    # Mostrar historial completo
+    historial = obtener_historial_movimientos()
+    if historial:
+        st.markdown("### 📊 Historial de movimientos")
+        df_mov = pd.DataFrame(historial, columns=["ID", "Insumo", "Tipo", "Cantidad", "Fecha y Hora", "Motivo"])
         st.dataframe(df_mov, use_container_width=True)
+
+    # 🔔 Alerta si hay insumos con menos de 3 unidades
+    st.markdown("### 🔍 Insumos con bajo stock")
+    insumos_bajos = [(n, u, c) for _, n, u, _, c in insumos if c < 3]
+    if insumos_bajos:
+        for nombre, unidad, cantidad in insumos_bajos:
+            unidad_leg = unidad_legible.get(unidad, unidad)
+            st.warning(f"⚠️ *{nombre}* tiene solo {cantidad:.2f} {unidad_leg}. Considera reabastecer.")
+    else:
+        st.success("✅ Todos los insumos tienen stock suficiente.")
+
 # =============================
 # 💰 PESTAÑA DE VENTAS
 # =============================
