@@ -2,13 +2,11 @@ import streamlit as st
 from streamlit_option_menu import option_menu
 import pandas as pd
 from pathlib import Path
-from datetime import datetime  # Para entradas/salidas
 from exportar_pdf import generar_pdf_receta
 from database.bd_ingresar import (
     crear_tabla_productos, agregar_producto, obtener_productos, actualizar_producto, eliminar_producto,
     crear_tabla_insumos, agregar_insumo, obtener_insumos, actualizar_insumo, eliminar_insumo,
-    crear_tabla_recetas, agregar_receta, obtener_recetas, obtener_detalle_receta, eliminar_receta,
-    crear_tabla_entradas_salidas, registrar_movimiento, obtener_historial_movimientos
+    crear_tabla_recetas, agregar_receta, obtener_recetas, obtener_detalle_receta, eliminar_receta
 )
 
 # === CONFIGURACIÓN GENERAL ===
@@ -48,6 +46,7 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
+
 # === MENÚ LATERAL ===
 with st.sidebar:
     st.session_state.pagina = option_menu(
@@ -63,71 +62,117 @@ with st.sidebar:
             "nav-link-selected": {"background-color": "#00ffcc", "color": "#121212", "font-weight": "bold"},
         }
     )
-
 # === CREAR TABLAS AL INICIAR ===
 crear_tabla_productos()
 crear_tabla_insumos()
 crear_tabla_recetas()
-crear_tabla_entradas_salidas()
-# =============================
-# 🏠 PÁGINA DE INICIO
-# =============================
-if st.session_state.pagina == "Inicio":
-    st.title("👨‍🍳 Sistema de Gestión - Panadería Moderna")
-    st.markdown("""
-    Bienvenido al sistema de gestión para tu panadería.  
-    Desde aquí puedes controlar tus productos, insumos, recetas, entradas y salidas, ventas y balance.
-    
-    Usa el menú lateral para navegar entre las diferentes secciones.  
-    """)
 
-    st.markdown("---")
-    st.markdown("### 🔍 ¿Qué deseas hacer hoy?")
+# === INICIO ===
+if st.session_state.pagina == "Inicio":
+    st.markdown("## 📊 Sistema de Gestión - Panadería Moderna")
+    st.markdown("### Selecciona una opción para comenzar:")
 
     col1, col2, col3 = st.columns(3)
-
     with col1:
-        if st.button("📦 Ir a Productos"):
+        if st.button("📦 Productos"):
             st.session_state.pagina = "Productos"
             st.rerun()
     with col2:
-        if st.button("🚚 Ir a Insumos"):
+        if st.button("🚚 Insumos"):
             st.session_state.pagina = "Insumos"
             st.rerun()
     with col3:
-        if st.button("📋 Ir a Recetas"):
+        if st.button("📋 Recetas"):
             st.session_state.pagina = "Recetas"
             st.rerun()
-# =============================
-# 📦 PESTAÑA DE PRODUCTOS
-# =============================
+
+    col4, col5, col6 = st.columns(3)
+    with col4:
+        if st.button("🔄 Entradas/Salidas"):
+            st.session_state.pagina = "Entradas/Salidas"
+            st.rerun()
+    with col5:
+        if st.button("💵 Ventas"):
+            st.session_state.pagina = "Ventas"
+            st.rerun()
+    with col6:
+        if st.button("📈 Balance"):
+            st.session_state.pagina = "Balance"
+            st.rerun()
+# === PRODUCTOS ===
 if st.session_state.pagina == "Productos":
     st.subheader("📦 Gestión de Productos")
 
-    with st.form("form_producto"):
-        nombre_p = st.text_input("Nombre del producto")
-        unidad_p = st.selectbox("Unidad", ["unidad", "paquete", "docena"])
+    with st.form("form_agregar_producto"):
+        st.markdown("### ➕ Agregar nuevo producto")
+        nombre = st.text_input("Nombre del producto")
+        unidad = st.selectbox("Unidad", ["unidad", "porción", "pieza", "queque", "paquete"])
         precio_venta = st.number_input("Precio de venta (₡)", min_value=0.0, format="%.2f")
-        costo = st.number_input("Costo (₡)", min_value=0.0, format="%.2f")
-        stock = st.number_input("Cantidad en stock", min_value=0)
-        submitted_p = st.form_submit_button("Agregar")
+        costo = st.number_input("Costo de elaboración (₡)", min_value=0.0, format="%.2f")
+        stock = st.number_input("Cantidad en stock", min_value=0, step=1)
+        submitted = st.form_submit_button("Agregar")
 
-        if submitted_p:
-            if nombre_p:
-                agregar_producto(nombre_p, unidad_p, precio_venta, costo, stock)
-                st.success(f"✅ Producto '{nombre_p}' agregado correctamente.")
+        if submitted:
+            if nombre and unidad:
+                agregar_producto(nombre, unidad, precio_venta, costo, stock)
+                st.success(f"✅ Producto '{nombre}' agregado correctamente.")
                 st.rerun()
             else:
-                st.error("❌ El nombre del producto no puede estar vacío.")
+                st.warning("⚠️ Debes completar todos los campos.")
 
-    st.markdown("### 📋 Productos registrados")
+    st.markdown("### 📋 Lista de productos")
     productos = obtener_productos()
+
     if productos:
-        df_productos = pd.DataFrame(productos, columns=["ID", "Nombre", "Unidad", "Precio Venta", "Costo", "Stock"])
-        df_productos = df_productos.drop(columns=["ID"])
-        st.dataframe(df_productos, use_container_width=True)
+        df = pd.DataFrame(productos, columns=["ID", "Nombre", "Unidad", "Precio Venta", "Costo", "Stock"])
+        df["Ganancia (₡)"] = df["Precio Venta"] - df["Costo"]
+
+        df["Precio Venta"] = df["Precio Venta"].map(lambda x: f"₡{int(x)}" if x == int(x) else f"₡{x:.2f}")
+        df["Costo"] = df["Costo"].map(lambda x: f"₡{int(x)}" if x == int(x) else f"₡{x:.2f}")
+        df["Ganancia (₡)"] = df["Ganancia (₡)"].map(lambda x: f"₡{int(x)}" if x == int(x) else f"₡{x:.2f}")
+
+        def color_stock(val):
+            return 'background-color: red; color: white' if val < 5 else ''
+        styled_df = df.style.applymap(color_stock, subset=["Stock"])
+        st.dataframe(styled_df, use_container_width=True)
+        st.markdown("### ✏️ Editar o eliminar un producto")
+        nombres_disponibles = [producto[1] for producto in productos]
+        seleccion = st.selectbox("Seleccionar producto por nombre", nombres_disponibles)
+
+        for producto in productos:
+            if producto[1] == seleccion:
+                id_producto = producto[0]
+                nombre_original = producto[1]
+                unidad_original = producto[2]
+                precio_original = producto[3]
+                costo_original = producto[4]
+                stock_original = producto[5]
+                break
+
+        with st.form("form_editar_producto"):
+            nuevo_nombre = st.text_input("Nombre", value=nombre_original)
+            nueva_unidad = st.selectbox("Unidad", ["unidad", "porción", "pieza", "queque", "paquete"],
+                                        index=["unidad", "porción", "pieza", "queque", "paquete"].index(unidad_original))
+            nuevo_precio = st.number_input("Precio de venta (₡)", value=float(precio_original), format="%.2f")
+            nuevo_costo = st.number_input("Costo de elaboración (₡)", value=float(costo_original), format="%.2f")
+            nuevo_stock = st.number_input("Stock disponible", value=int(stock_original), step=1)
+
+            col1, col2 = st.columns(2)
+            with col1:
+                actualizar = st.form_submit_button("Actualizar")
+            with col2:
+                eliminar = st.form_submit_button("Eliminar")
+
+            if actualizar:
+                actualizar_producto(id_producto, nuevo_nombre, nueva_unidad, nuevo_precio, nuevo_costo, nuevo_stock)
+                st.success("✅ Producto actualizado correctamente.")
+                st.rerun()
+            if eliminar:
+                eliminar_producto(id_producto)
+                st.success("🗑️ Producto eliminado correctamente.")
+                st.rerun()
     else:
-        st.info("📭 No hay productos registrados.")
+        st.info("ℹ️ No hay productos registrados todavía.")
 # =============================
 # 🚚 PESTAÑA DE INSUMOS
 # =============================
@@ -143,103 +188,245 @@ if st.session_state.pagina == "Insumos":
         "Unidad": "unidad"
     }
 
-    conversiones = {
-        "kg": 1000,
-        "l": 1000,
-        "g": 1,
-        "ml": 1,
-        "barra": 1,
-        "unidad": 1
-    }
-
     with st.form("form_agregar_insumo"):
         st.markdown("### ➕ Agregar nuevo insumo")
         nombre_i = st.text_input("Nombre del insumo")
         unidad_i_visible = st.selectbox("Unidad", list(unidades_dict.keys()))
         unidad_i = unidades_dict[unidad_i_visible]
+        cantidad = st.number_input("Cantidad adquirida", min_value=0.0)
         costo_total = st.number_input("Costo total (₡)", min_value=0.0, format="%.2f")
-        cantidad_total = st.number_input("Cantidad total adquirida", min_value=0.0)
         submitted_i = st.form_submit_button("Agregar")
 
         if submitted_i:
-            if nombre_i and unidad_i and cantidad_total > 0:
-                factor = conversiones.get(unidad_i, 1)
-                costo_unitario = round(costo_total / (cantidad_total * factor), 4)
-                cantidad_guardar = round(cantidad_total * factor, 2)
-                agregar_insumo(nombre_i, unidad_i, costo_unitario, cantidad_guardar)
-                st.success(f"✅ Insumo '{nombre_i}' agregado correctamente.")
+            if nombre_i and unidad_i and cantidad > 0:
+                costo_unitario = costo_total / cantidad
+                agregar_insumo(nombre_i, unidad_i, costo_unitario, cantidad)
+
+                # Calcular precio por unidad base
+                if unidad_i in ["kg", "l"]:
+                    costo_base = costo_unitario / 1000
+                    unidad_base = "gramo" if unidad_i == "kg" else "mililitro"
+                else:
+                    costo_base = costo_unitario
+                    unidad_base = unidad_i
+
+                st.success(
+                    f"✅ '{nombre_i}' agregado correctamente. "
+                    f"Cantidad: {cantidad} {unidad_i}, Costo total: ₡{costo_total:.2f}, "
+                    f"₡{costo_unitario:.2f} por {unidad_i} → ₡{costo_base:.2f} por {unidad_base}"
+                )
                 st.rerun()
             else:
-                st.error("❌ Completa todos los campos correctamente.")
+                st.warning("⚠️ Debes completar todos los campos y la cantidad debe ser mayor a cero.")
 
-    st.markdown("### 📋 Insumos registrados")
+    st.markdown("### 📋 Lista de insumos")
     insumos = obtener_insumos()
+
     if insumos:
-        df_insumos = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "₡ x unidad base", "Cantidad disponible"])
-        df_insumos["₡ x unidad base"] = df_insumos["₡ x unidad base"].apply(lambda x: f"{x:,.2f}")
-        df_insumos["Cantidad disponible"] = df_insumos["Cantidad disponible"].apply(lambda x: f"{x:,.2f}")
-        df_insumos = df_insumos.drop(columns=["ID"])
-        st.dataframe(df_insumos, use_container_width=True)
+        df_i = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Unitario", "Cantidad"])
+
+        unidad_legible = {v: k for k, v in unidades_dict.items()}
+        df_i["Unidad Mostrada"] = df_i["Unidad"].map(unidad_legible)
+
+        def calcular_precio_base(row):
+            if row["Unidad"] in ["kg", "l"]:
+                return row["Costo Unitario"] / 1000
+            else:
+                return row["Costo Unitario"]
+
+        df_i["₡ por unidad base"] = df_i.apply(calcular_precio_base, axis=1)
+        df_i["₡ por unidad base"] = df_i["₡ por unidad base"].map(lambda x: f"₡{x:.2f}")
+
+        df_i["Costo Total (₡)"] = df_i["Costo Unitario"] * df_i["Cantidad"]
+        df_i["Costo Total (₡)"] = df_i["Costo Total (₡)"].map(lambda x: f"₡{x:,.2f}")
+        df_i["Costo Unitario"] = df_i["Costo Unitario"].map(lambda x: f"₡{x:,.2f}")
+
+        st.dataframe(df_i[["ID", "Nombre", "Unidad Mostrada", "Costo Unitario", "Cantidad", "Costo Total (₡)", "₡ por unidad base"]], use_container_width=True)
+
+        st.markdown("### ✏️ Editar o eliminar un insumo")
+        nombres_insumos = [insumo[1] for insumo in insumos]
+        seleccion_i = st.selectbox("Seleccionar insumo por nombre", nombres_insumos)
+
+        for insumo in insumos:
+            if insumo[1] == seleccion_i:
+                id_insumo = insumo[0]
+                nombre_original = insumo[1]
+                unidad_original = insumo[2]
+                costo_unitario_original = insumo[3]
+                cantidad_original = insumo[4]
+                costo_total_original = costo_unitario_original * cantidad_original
+                break
+
+        unidad_visible_original = [k for k, v in unidades_dict.items() if v == unidad_original][0]
+
+        with st.form("form_editar_insumo"):
+            nuevo_nombre_i = st.text_input("Nombre", value=nombre_original)
+            nueva_unidad_visible = st.selectbox("Unidad", list(unidades_dict.keys()),
+                                                index=list(unidades_dict.keys()).index(unidad_visible_original))
+            nueva_unidad = unidades_dict[nueva_unidad_visible]
+            nueva_cantidad = st.number_input("Cantidad adquirida", value=float(cantidad_original))
+            nuevo_costo_total = st.number_input("Costo total (₡)", value=float(costo_total_original), format="%.2f")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                actualizar_i = st.form_submit_button("Actualizar")
+            with col2:
+                eliminar_i = st.form_submit_button("Eliminar")
+
+            if actualizar_i and nueva_cantidad > 0:
+                nuevo_costo_unitario = nuevo_costo_total / nueva_cantidad
+                actualizar_insumo(id_insumo, nuevo_nombre_i, nueva_unidad, nuevo_costo_unitario, nueva_cantidad)
+                st.success("✅ Insumo actualizado correctamente.")
+                st.rerun()
+            if eliminar_i:
+                eliminar_insumo(id_insumo)
+                st.success("🗑️ Insumo eliminado correctamente.")
+                st.rerun()
     else:
-        st.info("📭 No hay insumos registrados.")
+        st.info("ℹ️ No hay insumos registrados todavía.")
+
+
+
+
 # =============================
 # 📋 PESTAÑA DE RECETAS
 # =============================
 if st.session_state.pagina == "Recetas":
     st.subheader("📋 Gestión de Recetas")
+    crear_tabla_recetas()
 
-    insumos = obtener_insumos()
-    if not insumos:
-        st.warning("⚠️ Primero debes registrar insumos.")
-        st.stop()
+    with st.form("form_nueva_receta"):
+        st.markdown("### ➕ Crear nueva receta")
 
-    if "ingredientes_receta" not in st.session_state:
-        st.session_state.ingredientes_receta = []
+        nombre_receta = st.text_input("📛 Nombre de la receta")
+        instrucciones = st.text_area("📖 Instrucciones de preparación")
+        imagen_receta = st.file_uploader("📷 Foto del producto final (opcional)", type=["png", "jpg", "jpeg"])
 
-    st.markdown("### ➕ Agregar Ingredientes a la Receta")
+        insumos = obtener_insumos()
+        insumo_seleccionado = []
 
-    opciones_insumos = [f"{i[1]} ({i[2]})" for i in insumos]
-    insumo_seleccionado = st.selectbox("Selecciona insumo", opciones_insumos)
-    cantidad_usada = st.number_input("Cantidad a utilizar", min_value=0.0, step=0.1)
-    agregar_ingrediente = st.button("Agregar ingrediente")
-
-    if agregar_ingrediente:
-        index = opciones_insumos.index(insumo_seleccionado)
-        insumo_id, nombre_insumo, unidad, costo_unitario, cantidad_disponible = insumos[index]
-        costo_total = round(cantidad_usada * costo_unitario, 4)
-        st.session_state.ingredientes_receta.append({
-            "nombre": nombre_insumo,
-            "cantidad": cantidad_usada,
-            "unidad": unidad,
-            "costo_unitario": costo_unitario,
-            "costo_total": costo_total
-        })
-        st.success(f"✅ Ingrediente '{nombre_insumo}' agregado.")
-        st.rerun()
-
-    if st.session_state.ingredientes_receta:
-        st.markdown("### 🧾 Ingredientes agregados")
-        df_ingredientes = pd.DataFrame(st.session_state.ingredientes_receta)
-        df_ingredientes["costo_unitario"] = df_ingredientes["costo_unitario"].apply(lambda x: f"₡{x:,.2f}")
-        df_ingredientes["costo_total"] = df_ingredientes["costo_total"].apply(lambda x: f"₡{x:,.2f}")
-        st.dataframe(df_ingredientes, use_container_width=True)
-
-    st.markdown("### 📝 Finalizar Receta")
-
-    nombre_receta = st.text_input("Nombre de la receta")
-    instrucciones = st.text_area("Instrucciones")
-    guardar_receta = st.button("Guardar Receta")
-
-    if guardar_receta:
-        if not nombre_receta:
-            st.error("❌ El nombre de la receta es obligatorio.")
-        elif not st.session_state.ingredientes_receta:
-            st.error("❌ Agrega al menos un ingrediente.")
+        if not insumos:
+            st.warning("⚠️ No hay insumos registrados. Agrega insumos primero.")
         else:
-            costo_total = sum(item["costo_total"] for item in st.session_state.ingredientes_receta)
-            st.success(f"✅ Receta '{nombre_receta}' guardada. Costo estimado total: ₡{costo_total:,.2f}")
-            st.session_state.ingredientes_receta = []
-            st.rerun()
+            st.markdown("### 🧺 Seleccionar ingredientes:")
+            for insumo in insumos:
+                insumo_id, nombre, unidad, _, _ = insumo
+                cantidad = st.number_input(f"{nombre} ({unidad})", min_value=0.0, step=0.1, key=f"nuevo_{insumo_id}")
+                if cantidad > 0:
+                    insumo_seleccionado.append((insumo_id, cantidad))
+
+        submitted_receta = st.form_submit_button("🍽️ Guardar receta")
+
+        if submitted_receta:
+            if not nombre_receta or not insumo_seleccionado:
+                st.warning("⚠️ Debes ingresar un nombre y al menos un insumo.")
+            else:
+                agregar_receta(nombre_receta, instrucciones, insumo_seleccionado)
+                if imagen_receta:
+                    carpeta_imagenes = Path("imagenes_recetas")
+                    carpeta_imagenes.mkdir(exist_ok=True)
+                    nombre_archivo = f"{nombre_receta.replace(' ', '_')}.jpg"
+                    with open(carpeta_imagenes / nombre_archivo, "wb") as f:
+                        f.write(imagen_receta.read())
+                st.success(f"✅ Receta '{nombre_receta}' guardada correctamente.")
+                st.rerun()
+
+    st.markdown("### 📋 Recetas registradas")
+    recetas = obtener_recetas()
+
+    if recetas:
+        for receta in recetas:
+            receta_id, nombre, instrucciones = receta
+            detalles = obtener_detalle_receta(receta_id)
+            insumos_db = {i[0]: i for i in obtener_insumos()}
+
+            desglose = []
+            costo_total = 0
+
+            for nombre_insumo, cantidad, unidad, _ in detalles:
+                for insumo in insumos_db.values():
+                    if insumo[1] == nombre_insumo:
+                        costo_unitario = insumo[3]
+                        unidad_insumo = insumo[2]
+
+                        if unidad_insumo in ["kg", "l"]:
+                            costo_por_base = costo_unitario / 1000
+                            cantidad_en_base = cantidad * 1000 if unidad == unidad_insumo else cantidad
+                        else:
+                            costo_por_base = costo_unitario
+                            cantidad_en_base = cantidad
+
+                        subtotal = cantidad_en_base * costo_por_base
+                        costo_total += subtotal
+
+                        desglose.append((nombre_insumo, cantidad, unidad, costo_por_base, subtotal))
+                        break
+
+            with st.expander(f"🍰 {nombre} - Costo total: ₡{costo_total:,.2f}"):
+                ruta_img = Path("imagenes_recetas") / f"{nombre.replace(' ', '_')}.jpg"
+                if ruta_img.exists():
+                    st.image(str(ruta_img), caption=f"📷 {nombre}", width=300)
+
+                st.markdown(f"**📝 Instrucciones:** {instrucciones or 'Sin instrucciones.'}")
+                st.markdown("**🧾 Ingredientes:**")
+                for nombre_i, cant_i, unidad_i, costo_u, subtotal in desglose:
+                    st.markdown(
+                        f"- {nombre_i} — {cant_i:.2f} {unidad_i} — "
+                        f"(₡{costo_u:.2f} c/u → Subtotal: ₡{subtotal:,.2f})"
+                    )
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button(f"🗑️ Eliminar receta", key=f"eliminar_{receta_id}"):
+                        eliminar_receta(receta_id)
+                        if ruta_img.exists():
+                            ruta_img.unlink()
+                        st.success(f"🗑️ Receta '{nombre}' eliminada.")
+                        st.rerun()
+                with col2:
+                    if st.button("✏️ Editar receta", key=f"editar_{receta_id}"):
+                        st.session_state[f"editando_{receta_id}"] = True
+
+            if st.session_state.get(f"editando_{receta_id}", False):
+                with st.form(f"form_edicion_{receta_id}"):
+                    nuevo_nombre = st.text_input("📛 Nuevo nombre", value=nombre, key=f"nombre_{receta_id}")
+                    nuevas_instrucciones = st.text_area("📖 Nuevas instrucciones", value=instrucciones or "", key=f"inst_{receta_id}")
+                    nueva_imagen = st.file_uploader("📷 Nueva imagen (opcional)", type=["jpg", "jpeg", "png"], key=f"img_{receta_id}")
+
+                    nuevos_insumos = []
+                    insumos = obtener_insumos()
+                    for insumo in insumos:
+                        insumo_id, insumo_nombre, unidad, _, _ = insumo
+                        cantidad_actual = next((c for n, c, u, _ in detalles if n == insumo_nombre), 0.0)
+                        cantidad = st.number_input(
+                            f"{insumo_nombre} ({unidad})",
+                            value=float(cantidad_actual),
+                            min_value=0.0,
+                            step=0.1,
+                            key=f"insumo_edit_{receta_id}_{insumo_id}"
+                        )
+                        if cantidad > 0:
+                            nuevos_insumos.append((insumo_id, cantidad))
+
+                    guardar = st.form_submit_button("💾 Guardar cambios")
+                    if guardar:
+                        eliminar_receta(receta_id)
+                        agregar_receta(nuevo_nombre, nuevas_instrucciones, nuevos_insumos)
+                        carpeta = Path("imagenes_recetas")
+                        viejo = carpeta / f"{nombre.replace(' ', '_')}.jpg"
+                        nuevo = carpeta / f"{nuevo_nombre.replace(' ', '_')}.jpg"
+                        if nueva_imagen:
+                            with open(nuevo, "wb") as f:
+                                f.write(nueva_imagen.read())
+                        elif viejo.exists() and nombre != nuevo_nombre:
+                            viejo.rename(nuevo)
+                        st.success("✅ Receta actualizada.")
+                        st.session_state[f"editando_{receta_id}"] = False
+                        st.rerun()
+    else:
+        st.info("ℹ️ No hay recetas registradas todavía.")
+
+
 # =============================
 # 📤 PESTAÑA DE ENTRADAS Y SALIDAS
 # =============================
