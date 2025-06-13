@@ -68,7 +68,7 @@ with st.sidebar:
 crear_tabla_productos()
 crear_tabla_insumos()
 crear_tabla_recetas()
-
+crear_tabla_entradas_salidas() 
 # === INICIO ===
 if st.session_state.pagina == "Inicio":
     st.markdown("## 📊 Sistema de Gestión - Panadería Moderna")
