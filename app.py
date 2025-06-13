@@ -213,7 +213,7 @@ if st.session_state.pagina == "Insumos":
                 st.success(
                     f"✅ '{nombre_i}' agregado correctamente. "
                     f"Cantidad: {cantidad} {unidad_i}, Costo total: ₡{costo_total:.2f}, "
-                    f"₡{costo_unitario:.2f} por {unidad_i} → ₡{costo_base:.4f} por {unidad_base}"
+                    f"₡{costo_unitario:.2f} por {unidad_i} → ₡{costo_base:.2f} por {unidad_base}"
                 )
                 st.rerun()
             else:
@@ -235,7 +235,7 @@ if st.session_state.pagina == "Insumos":
                 return row["Costo Unitario"]
 
         df_i["₡ por unidad base"] = df_i.apply(calcular_precio_base, axis=1)
-        df_i["₡ por unidad base"] = df_i["₡ por unidad base"].map(lambda x: f"₡{x:.4f}")
+        df_i["₡ por unidad base"] = df_i["₡ por unidad base"].map(lambda x: f"₡{x:.2f}")
 
         df_i["Costo Total (₡)"] = df_i["Costo Unitario"] * df_i["Cantidad"]
         df_i["Costo Total (₡)"] = df_i["Costo Total (₡)"].map(lambda x: f"₡{x:,.2f}")
@@ -349,13 +349,15 @@ if st.session_state.pagina == "Recetas":
                         costo_unitario = insumo[3]  # precio por unidad registrada
                         unidad_insumo = insumo[2]
 
-                        # Convertir a precio por unidad base
+                        # Calcular costo proporcional
                         if unidad_insumo in ["kg", "l"]:
                             costo_por_base = costo_unitario / 1000  # precio por gramo o ml
+                            cantidad_en_base = cantidad * 1000 if unidad == unidad_insumo else cantidad
                         else:
-                            costo_por_base = costo_unitario  # ya es por unidad base
+                            costo_por_base = costo_unitario
+                            cantidad_en_base = cantidad
 
-                        subtotal = cantidad * costo_por_base
+                        subtotal = cantidad_en_base * costo_por_base
                         costo_total += subtotal
 
                         desglose.append((nombre_insumo, cantidad, unidad, costo_por_base, subtotal))
@@ -369,7 +371,10 @@ if st.session_state.pagina == "Recetas":
                 st.markdown(f"**📝 Instrucciones:** {instrucciones or 'Sin instrucciones.'}")
                 st.markdown("**🧾 Ingredientes:**")
                 for nombre_i, cant_i, unidad_i, costo_u, subtotal in desglose:
-                    st.markdown(f"- {nombre_i} — {cant_i} {unidad_i} — ₡{costo_u:.4f} c/u → Subtotal: ₡{subtotal:,.2f}")
+                    st.markdown(
+                        f"- {nombre_i} — {cant_i:.2f} {unidad_i} — "
+                        f"(₡{costo_u:.2f} c/u → Subtotal: ₡{subtotal:,.2f})"
+                    )
 
                 col1, col2, col3 = st.columns(3)
                 with col1:
@@ -430,6 +435,7 @@ if st.session_state.pagina == "Recetas":
                         st.rerun()
     else:
         st.info("ℹ️ No hay recetas registradas todavía.")
+
 
 
 
