@@ -611,8 +611,18 @@ if st.session_state.pagina == "Ventas":
 # =============================
 # 📊 PESTAÑA DE BALANCE
 # =============================
-with tabs[5]:
+if st.session_state.pagina == "Balance":
+    from datetime import datetime
+
     st.subheader("📊 Balance General del Negocio")
+
+    # ==== Selección de rango de fechas ====
+    st.markdown("### 📅 Selecciona un rango de fechas")
+    col1, col2 = st.columns(2)
+    with col1:
+        fecha_inicio = st.date_input("Desde", value=datetime.today().replace(day=1))
+    with col2:
+        fecha_fin = st.date_input("Hasta", value=datetime.today())
 
     # ==== Inventario de Insumos ====
     insumos = obtener_insumos()
@@ -629,31 +639,44 @@ with tabs[5]:
 
     st.divider()
 
-    # ==== Resumen de Ventas ====
-    st.markdown("### 💰 Ventas registradas en esta sesión")
+    # ==== Ventas filtradas por fecha ====
+    st.markdown("### 💰 Ventas registradas en el período")
 
-    if "ventas" in st.session_state and st.session_state.ventas:
-        df_ventas = pd.DataFrame(st.session_state.ventas)
-        st.dataframe(df_ventas, use_container_width=True)
+    ventas = obtener_ventas()
+    if ventas:
+        df_ventas = pd.DataFrame(ventas, columns=["ID", "Producto", "Unidad", "Cantidad", "Ingreso (₡)", "Costo (₡)", "Ganancia (₡)", "Fecha"])
+        df_ventas["Fecha"] = pd.to_datetime(df_ventas["Fecha"], format="%d/%m/%Y")
 
-        total_ingresos = df_ventas["Ingreso (₡)"].sum()
-        total_ganancia = df_ventas["Ganancia (₡)"].sum()
-        total_costos = df_ventas["Costo (₡)"].sum()
+        # Filtrar por fechas seleccionadas
+        df_ventas_filtrado = df_ventas[(df_ventas["Fecha"] >= pd.to_datetime(fecha_inicio)) & (df_ventas["Fecha"] <= pd.to_datetime(fecha_fin))]
 
-        st.markdown(f"- **🟢 Ingresos:** ₡{total_ingresos:,.2f}")
-        st.markdown(f"- **🧾 Costos:** ₡{total_costos:,.2f}")
-        st.markdown(f"- **📈 Ganancia total:** ₡{total_ganancia:,.2f}")
+        if not df_ventas_filtrado.empty:
+            total_ingresos = df_ventas_filtrado["Ingreso (₡)"].sum()
+            total_costos = df_ventas_filtrado["Costo (₡)"].sum()
+            total_ganancia = df_ventas_filtrado["Ganancia (₡)"].sum()
+
+            df_ventas_filtrado["Cantidad"] = df_ventas_filtrado["Cantidad"].apply(lambda x: f"{x:.2f}")
+            df_ventas_filtrado["Ingreso (₡)"] = df_ventas_filtrado["Ingreso (₡)"].apply(lambda x: f"₡{x:,.2f}")
+            df_ventas_filtrado["Costo (₡)"] = df_ventas_filtrado["Costo (₡)"].apply(lambda x: f"₡{x:,.2f}")
+            df_ventas_filtrado["Ganancia (₡)"] = df_ventas_filtrado["Ganancia (₡)"].apply(lambda x: f"₡{x:,.2f}")
+            df_ventas_filtrado["Fecha"] = df_ventas_filtrado["Fecha"].dt.strftime("%d/%m/%Y")
+
+            st.dataframe(df_ventas_filtrado.drop(columns=["ID"]), use_container_width=True)
+
+            st.markdown(f"- **🟢 Ingresos:** ₡{total_ingresos:,.2f}")
+            st.markdown(f"- **🧾 Costos:** ₡{total_costos:,.2f}")
+            st.markdown(f"- **📈 Ganancia total:** ₡{total_ganancia:,.2f}")
+
+            st.divider()
+
+            st.markdown("### 📉 Comparativo resumen")
+            st.markdown(f"🔸 **Valor actual del inventario:** ₡{total_inventario:,.2f}")
+            st.markdown(f"🔸 **Ganancia generada en período:** ₡{total_ganancia:,.2f}")
+            balance_total = total_ingresos - total_inventario
+            st.markdown(f"🔸 **Balance estimado (ingresos - inventario):** ₡{balance_total:,.2f}")
+        else:
+            st.info("ℹ️ No hay ventas registradas en el rango seleccionado.")
     else:
-        st.info("ℹ️ No hay ventas registradas en esta sesión.")
-
-    st.divider()
-
-    # ==== Comparativo Básico ====
-    if insumos and "ventas" in st.session_state and st.session_state.ventas:
-        st.markdown("### 📉 Comparativo resumen")
-        st.markdown(f"🔸 **Valor actual del inventario:** ₡{total_inventario:,.2f}")
-        st.markdown(f"🔸 **Ganancia generada (ventas - costos):** ₡{total_ganancia:,.2f}")
-        balance_total = total_ingresos - total_inventario
-        st.markdown(f"🔸 **Balance estimado (ingresos - inventario):** ₡{balance_total:,.2f}")
+        st.info("ℹ️ No hay ventas registradas.")
 
 
