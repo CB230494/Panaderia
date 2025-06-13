@@ -201,21 +201,14 @@ if st.session_state.pagina == "Insumos":
             if nombre_i and unidad_i and cantidad > 0:
                 agregar_insumo(nombre_i, unidad_i, costo_registrado, cantidad)
 
-                if unidad_i in ["kg", "l"]:
-                    tipo_base = "gramo" if unidad_i == "kg" else "mililitro"
-                    unidades = cantidad * 1000
-                else:
-                    tipo_base = unidad_i
-                    unidades = cantidad
-
-                precio_por_unidad = costo_registrado / unidades if unidades > 0 else 0
+                precio_por_unidad = costo_registrado / cantidad
                 st.success(
-                    f"✅ Insumo '{nombre_i}' agregado correctamente. Costo registrado: ₡{costo_registrado:.2f} por {cantidad:.0f} {tipo_base}(s) → ₡{precio_por_unidad:.2f} por unidad base"
+                    f"✅ Insumo '{nombre_i}' agregado correctamente. Costo registrado: ₡{costo_registrado:.2f} por {cantidad:.3f} {unidad_i} → ₡{precio_por_unidad:.2f} por unidad"
                 )
                 st.rerun()
             else:
                 st.warning("⚠️ Debes completar todos los campos y la cantidad debe ser mayor a cero.")
-    
+
     st.markdown("### 📋 Lista de insumos")
     insumos = obtener_insumos()
 
@@ -225,18 +218,14 @@ if st.session_state.pagina == "Insumos":
         unidad_legible = {v: k for k, v in unidades_dict.items()}
         df_i["Unidad Mostrada"] = df_i["Unidad"].map(unidad_legible)
 
-        def calcular_costo_base(row):
-            if row["Unidad"] in ["kg", "l"]:
-                return row["Costo Registrado"] / (row["Cantidad"] * 1000) if row["Cantidad"] > 0 else 0
-            else:
-                return row["Costo Registrado"] / row["Cantidad"] if row["Cantidad"] > 0 else 0
-
-        df_i["₡ por unidad base"] = df_i.apply(calcular_costo_base, axis=1)
-        df_i["₡ por unidad base"] = df_i["₡ por unidad base"].map(lambda x: f"₡{x:.2f}")
+        df_i["₡ por unidad"] = df_i.apply(
+            lambda row: row["Costo Registrado"] / row["Cantidad"] if row["Cantidad"] > 0 else 0, axis=1
+        )
+        df_i["₡ por unidad"] = df_i["₡ por unidad"].map(lambda x: f"₡{x:.2f}")
 
         df_i.rename(columns={"Costo Registrado": "Costo Total (₡)"}, inplace=True)
 
-        st.dataframe(df_i[["ID", "Nombre", "Unidad Mostrada", "Costo Total (₡)", "Cantidad", "₡ por unidad base"]], use_container_width=True)
+        st.dataframe(df_i[["ID", "Nombre", "Unidad Mostrada", "Costo Total (₡)", "Cantidad", "₡ por unidad"]], use_container_width=True)
 
         st.markdown("### ✏️ Editar o eliminar un insumo")
         nombres_insumos = [insumo[1] for insumo in insumos]
@@ -277,6 +266,7 @@ if st.session_state.pagina == "Insumos":
                 st.rerun()
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
+
 
 # =============================
 # 📋 PESTAÑA DE RECETAS
