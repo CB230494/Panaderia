@@ -477,11 +477,13 @@ if st.session_state.pagina == "Entradas/Salidas":
             st.success(f"✅ {tipo_movimiento} registrada correctamente.")
             st.rerun()
 
+    # === HISTORIAL DE MOVIMIENTOS ===
     historial = obtener_historial_movimientos()
     if historial:
         st.markdown("### 📜 Historial de Movimientos")
         df_hist = pd.DataFrame(historial, columns=["ID", "Insumo", "Tipo", "Cantidad", "Fecha y Hora", "Motivo"])
-        df_hist["Fecha y Hora"] = pd.to_datetime(df_hist["Fecha y Hora"]).dt.strftime("%d/%m/%Y %H:%M")
+        df_hist["Fecha y Hora"] = pd.to_datetime(df_hist["Fecha y Hora"]).dt.strftime("%d/%m/%Y")
+        df_hist["Cantidad"] = df_hist["Cantidad"].apply(lambda x: f"{x:.2f}")
         df_hist = df_hist.drop(columns=["ID"])
 
         def colorear_tipo(val):
@@ -490,14 +492,14 @@ if st.session_state.pagina == "Entradas/Salidas":
 
         st.dataframe(df_hist.style.applymap(colorear_tipo, subset=["Tipo"]), use_container_width=True)
 
-    # Verificación de bajo stock
+    # === INSUMOS CON STOCK BAJO ===
     st.markdown("### 🚨 Insumos con stock bajo")
     bajo_stock = [i for i in insumos if i[4] < 3]
     if bajo_stock:
         df_bajo = pd.DataFrame(bajo_stock, columns=["ID", "Nombre", "Unidad", "₡ x unidad", "Cantidad disponible"])
-        df_bajo["Unidad"] = df_bajo["Unidad"].map(unidad_legible)  # ✅ Aplica nombre completo
+        df_bajo["Unidad"] = df_bajo["Unidad"].map(unidad_legible)  # ✅ Nombre legible
         df_bajo["₡ x unidad"] = df_bajo["₡ x unidad"].apply(lambda x: f"₡{x:,.2f}")
-        df_bajo["Cantidad disponible"] = df_bajo["Cantidad disponible"].apply(lambda x: f"{x:,.2f}")
+        df_bajo["Cantidad disponible"] = df_bajo["Cantidad disponible"].apply(lambda x: f"{x:.2f}")
         df_bajo = df_bajo.drop(columns=["ID"])
         st.warning("⚠️ Tienes insumos con menos de 3 unidades.")
         st.dataframe(df_bajo.style.highlight_max(axis=0, color="salmon"), use_container_width=True)
