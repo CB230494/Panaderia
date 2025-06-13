@@ -449,7 +449,8 @@ if st.session_state.pagina == "Entradas/Salidas":
         "unidad": "unidades"
     }
 
-    nombres_insumos = [f"{i[1]} ({i[2]})" for i in insumos]
+    # Mostrar nombres con unidad legible en el selectbox
+    nombres_insumos = [f"{i[1]} ({unidad_legible.get(i[2], i[2])})" for i in insumos]
     insumo_elegido = st.selectbox("🔽 Selecciona el insumo", nombres_insumos)
 
     index = nombres_insumos.index(insumo_elegido)
@@ -494,6 +495,7 @@ if st.session_state.pagina == "Entradas/Salidas":
     bajo_stock = [i for i in insumos if i[4] < 3]
     if bajo_stock:
         df_bajo = pd.DataFrame(bajo_stock, columns=["ID", "Nombre", "Unidad", "₡ x unidad", "Cantidad disponible"])
+        df_bajo["Unidad"] = df_bajo["Unidad"].map(unidad_legible)  # ✅ Aplica nombre completo
         df_bajo["₡ x unidad"] = df_bajo["₡ x unidad"].apply(lambda x: f"₡{x:,.2f}")
         df_bajo["Cantidad disponible"] = df_bajo["Cantidad disponible"].apply(lambda x: f"{x:,.2f}")
         df_bajo = df_bajo.drop(columns=["ID"])
@@ -501,6 +503,7 @@ if st.session_state.pagina == "Entradas/Salidas":
         st.dataframe(df_bajo.style.highlight_max(axis=0, color="salmon"), use_container_width=True)
     else:
         st.success("✅ Todos los insumos tienen suficiente stock.")
+
 
 
 
