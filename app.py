@@ -69,6 +69,8 @@ crear_tabla_productos()
 crear_tabla_insumos()
 crear_tabla_recetas()
 crear_tabla_entradas_salidas() 
+crear_tabla_ventas()
+
 # === INICIO ===
 if st.session_state.pagina == "Inicio":
     st.markdown("## 📊 Sistema de Gestión - Panadería Moderna")
@@ -512,7 +514,8 @@ if st.session_state.pagina == "Entradas/Salidas":
 # =============================
 # 💰 PESTAÑA DE VENTAS
 # =============================
-with tabs[4]:
+if st.session_state.pagina == "Ventas":
+    from datetime import datetime
     st.subheader("💰 Registro de Ventas de Productos")
 
     productos = obtener_productos()
@@ -523,7 +526,7 @@ with tabs[4]:
         producto_elegido = st.selectbox("🧁 Selecciona el producto vendido", nombres_productos)
 
         index = nombres_productos.index(producto_elegido)
-        id_producto, nombre, unidad, precio_venta, costo_unitario = productos[index]
+        id_producto, nombre, unidad, precio_venta, costo_unitario, _ = productos[index]
 
         st.markdown(f"**💵 Precio de venta:** ₡{precio_venta:,.2f}")
         st.markdown(f"**🧾 Costo de elaboración:** ₡{costo_unitario:,.2f}")
@@ -531,37 +534,61 @@ with tabs[4]:
         cantidad_vendida = st.number_input("📦 Cantidad vendida", min_value=0.0, step=0.1)
         registrar_venta = st.button("💾 Registrar venta")
 
-        if "ventas" not in st.session_state:
-            st.session_state.ventas = []
+        if registrar_venta and cantidad_vendida > 0:
+            ingreso_total = round(cantidad_vendida * precio_venta, 2)
+            costo_total = round(cantidad_vendida * costo_unitario, 2)
+            ganancia_total = round(ingreso_total - costo_total, 2)
+            fecha_actual = datetime.now().strftime("%d/%m/%Y")
 
-        if registrar_venta:
-            ingreso_total = cantidad_vendida * precio_venta
-            costo_total = cantidad_vendida * costo_unitario
-            ganancia_total = ingreso_total - costo_total
-
-            st.session_state.ventas.append({
-                "Producto": nombre,
-                "Unidad": unidad,
-                "Cantidad": cantidad_vendida,
-                "Ingreso (₡)": ingreso_total,
-                "Costo (₡)": costo_total,
-                "Ganancia (₡)": ganancia_total
-            })
-
+            registrar_venta_en_db(nombre, unidad, cantidad_vendida, ingreso_total, costo_total, ganancia_total, fecha_actual)
             st.success("✅ Venta registrada correctamente.")
             st.rerun()
 
-    # Mostrar resumen de ventas realizadas en la sesión
-    if "ventas" in st.session_state and st.session_state.ventas:
-        st.markdown("### 📋 Ventas registradas (sesión actual)")
-        df_ventas = pd.DataFrame(st.session_state.ventas)
-        st.dataframe(df_ventas, use_container_width=True)
+    # Mostrar resumen de ventas desde base de datos
+    ventas = obtener_ventas()
+    if ventas:
+        st.markdown("### 📋 Historial de ventas")
+        df_ventas = pd.DataFrame(ventas, columns=["ID", "Producto", "Unidad", "Cantidad", "Ingreso (₡)", "Costo (₡)", "Ganancia (₡)", "Fecha"])
+        df_ventas["Cantidad"] = df_ventas["Cantidad"].apply(lambda x: f"{x:.2f}")
+        df_ventas["Ingreso (₡)"] = df_ventas["Ingreso (₡)"].apply(lambda x: f"₡{x:,.2f}")
+        df_ventas["Costo (₡)"] = df_ventas["Costo (₡)"].apply(lambda x: f"₡{x:,.2f}")
+        df_ventas["Ganancia (₡)"] = df_ventas["Ganancia (₡)"].apply(lambda x: f"₡{x:,.2f}")
 
-        total_ingresos = df_ventas["Ingreso (₡)"].sum()
-        total_ganancias = df_ventas["Ganancia (₡)"].sum()
+        st.dataframe(df_ventas.drop(columns=["ID"]), use_container_width=True)
+
+        total_ingresos = sum([v[4] for v in ventas])
+        total_ganancias = sum([v[6] for v in ventas])
 
         st.markdown(f"**💵 Total ingresos:** ₡{total_ingresos:,.2f}")
         st.markdown(f"**📈 Total ganancias:** ₡{total_ganancias:,.2f}")
+
+        st.markdown("### ✏️ Editar o eliminar una venta")
+
+        ids_ventas = [f"{v[0]} - {v[1]} ({v[3]:.2f})" for v in ventas]
+        seleccion_id = st.selectbox("Selecciona una venta", ids_ventas)
+
+        venta_id = int(seleccion_id.split(" - ")[0])
+        venta = next(v for v in ventas if v[0] == venta_id)
+
+        nueva_cantidad = st.number_input("Nueva cantidad vendida", min_value=0.1, value=float(venta[3]), step=0.1)
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Actualizar venta"):
+                nuevo_ingreso = round(nueva_cantidad * float(precio_venta), 2)
+                nuevo_costo = round(nueva_cantidad * float(costo_unitario), 2)
+                nueva_ganancia = round(nuevo_ingreso - nuevo_costo, 2)
+
+                actualizar_venta(venta_id, nueva_cantidad, nuevo_ingreso, nuevo_costo, nueva_ganancia)
+                st.success("✅ Venta actualizada correctamente.")
+                st.rerun()
+        with col2:
+            if st.button("Eliminar venta"):
+                eliminar_venta(venta_id)
+                st.success("🗑️ Venta eliminada correctamente.")
+                st.rerun()
+    else:
+        st.info("ℹ️ Aún no hay ventas registradas.")
+
 # =============================
 # 📊 PESTAÑA DE BALANCE
 # =============================
