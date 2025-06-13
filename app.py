@@ -434,9 +434,7 @@ if st.session_state.pagina == "Recetas":
 # =============================
 # 📤 PESTAÑA DE ENTRADAS/SALIDAS
 # =============================
-from datetime import datetime
-
-with tabs[3]:
+if st.session_state.pagina == "Entradas/Salidas":
     st.subheader("📤 Registro de Entradas y Salidas de Insumos")
 
     unidad_legible = {
@@ -498,6 +496,7 @@ with tabs[3]:
             st.warning(f"⚠️ *{nombre}* tiene solo {cantidad:.2f} {unidad_leg}. Considera reabastecer.")
     else:
         st.success("✅ Todos los insumos tienen stock suficiente.")
+
 
 # =============================
 # 💰 PESTAÑA DE VENTAS
