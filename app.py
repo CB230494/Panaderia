@@ -75,7 +75,7 @@ crear_tabla_ventas()
 
 # === INICIO ===
 if st.session_state.pagina == "Inicio":
-    st.markdown("## 📊 Sistema de Gestión - Panadería Moderna")
+    st.markdown("## 📊 Sistema de Gestión - Panadería ")
     st.markdown("### Selecciona una opción para comenzar:")
 
     col1, col2, col3 = st.columns(3)
