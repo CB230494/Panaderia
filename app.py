@@ -1,89 +1,70 @@
 import streamlit as st
-from streamlit_option_menu import option_menu
+from supabase import create_client, Client
 from datetime import datetime
 import pandas as pd
-from fpdf import FPDF
-from PIL import Image
-import base64
-import os
-from supabase import create_client, Client
+from streamlit_option_menu import option_menu
 
-# =============================
-# 🔗 CONEXIÓN A SUPABASE
-# =============================
+# -----------------------
+# CONFIGURACIÓN INICIAL
+# -----------------------
+st.set_page_config(page_title="Sistema Panadería", layout="wide")
+st.markdown("<h1 style='text-align: center;'>🧁 Sistema de Gestión de Panadería</h1>", unsafe_allow_html=True)
+
+# -----------------------
+# CONEXIÓN SUPABASE
+# -----------------------
 url = "https://fuqenmijstetuwhdulax.supabase.co"
 key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ1cWVubWlqc3RldHV3aGR1bGF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyODM4MzksImV4cCI6MjA2ODg1OTgzOX0.9JdF70hcLCVCa0-lCd7yoSFKtO72niZbahM-u2ycAVg"
 supabase: Client = create_client(url, key)
 
-# =============================
-# 📂 CREAR CARPETAS NECESARIAS
-# =============================
-os.makedirs("imagenes_recetas", exist_ok=True)
-
-# =============================
-# 🔧 CONFIGURACIÓN DE PÁGINA
-# =============================
-st.set_page_config(page_title="Gestión de Panadería", layout="wide")
-st.markdown("<h1 style='text-align: center;'>🧁 Sistema de Gestión de Panadería</h1>", unsafe_allow_html=True)
-
-# =============================
-# 📋 MENÚ LATERAL
-# =============================
-with st.sidebar:
-    opcion = option_menu(
-        menu_title="Navegación",
-        options=["Inicio", "Productos", "Insumos", "Recetas", "Entradas/Salidas", "Ventas", "Balance"],
-        icons=["house", "box", "truck", "file-earmark-text", "arrow-left-right", "cash-stack", "bar-chart-line"],
-        default_index=0,
-        menu_icon="list"
-    )
-    st.session_state.pagina = opcion
-
-# =============================
-# ⚙️ FUNCIONES BASE CON SUPABASE
-# =============================
+# -----------------------
+# FUNCIONES AUXILIARES
+# -----------------------
 def obtener_productos():
-    res = supabase.table("productos").select("*").order("id", desc=True).execute()
-    return res.data if res.data else []
+    return supabase.table("productos").select("*").execute().data
 
 def obtener_insumos():
-    res = supabase.table("insumos").select("*").order("id", desc=True).execute()
-    return res.data if res.data else []
+    return supabase.table("insumos").select("*").execute().data
 
 def obtener_ventas():
-    res = supabase.table("ventas").select("*").order("id", desc=True).execute()
-    return res.data if res.data else []
+    return supabase.table("ventas").select("*").execute().data
 
-def actualizar_producto(id, nombre, unidad, precio_venta, costo, stock):
-    supabase.table("productos").update({
-        "nombre": nombre,
-        "unidad": unidad,
-        "precio_venta": precio_venta,
-        "costo": costo,
-        "stock": stock
-    }).eq("id", id).execute()
+def obtener_movimientos():
+    return supabase.table("movimientos").select("*").order("fecha", desc=True).limit(50).execute().data
+
+def obtener_recetas():
+    return supabase.table("recetas").select("*").order("producto").execute().data
+
+# -----------------------
+# MENÚ DE NAVEGACIÓN
+# -----------------------
+with st.sidebar:
+    st.title("📌 Menú Principal")
+    seleccion = option_menu(
+        menu_title=None,
+        options=["Inicio", "Productos", "Insumos", "Recetas", "Ventas", "Balance", "Entradas/Salidas"],
+        icons=["house", "box", "truck", "clipboard-data", "cash-coin", "bar-chart", "arrow-left-right"],
+        default_index=0
+    )
+    st.session_state.pagina = seleccion
+
 # =============================
-# 🏠 PESTAÑA DE INICIO
+# 🏠 INICIO
 # =============================
 if st.session_state.pagina == "Inicio":
-    st.subheader("📊 Panel General")
-    st.markdown("Bienvenido al sistema de gestión para tu panadería. Aquí puedes ver un resumen general del negocio.")
+    st.subheader("📊 Resumen General del Negocio")
 
-    # Cargar métricas
     productos = obtener_productos()
     insumos = obtener_insumos()
     ventas = obtener_ventas()
 
     col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("📦 Productos", len(productos))
-    with col2:
-        st.metric("🧂 Insumos", len(insumos))
-    with col3:
-        st.metric("💰 Ventas", len(ventas))
+    col1.metric("📦 Productos registrados", len(productos))
+    col2.metric("🧂 Insumos disponibles", len(insumos))
+    col3.metric("💰 Ventas totales", len(ventas))
 
-    st.divider()
-    st.markdown("Utiliza el menú lateral para registrar productos, administrar insumos, gestionar recetas y visualizar reportes de ventas o balance general.")
+    st.markdown("---")
+    st.markdown("Este sistema te permite gestionar productos, insumos, recetas, movimientos de inventario y ventas de manera eficiente. Usa el menú lateral para navegar por las distintas secciones.")
 # =============================
 # 📦 PESTAÑA DE PRODUCTOS
 # =============================
@@ -91,387 +72,290 @@ if st.session_state.pagina == "Productos":
     st.subheader("📦 Gestión de Productos")
 
     with st.expander("➕ Agregar nuevo producto"):
-        with st.form("form_producto"):
-            nombre = st.text_input("Nombre del producto")
-            unidad = st.selectbox("Unidad de medida", ["unidad", "gramos", "litros"])
-            precio_venta = st.number_input("Precio de venta (₡)", min_value=0.0, format="%.2f")
-            costo = st.number_input("Costo estimado (₡)", min_value=0.0, format="%.2f")
-            stock = st.number_input("Stock inicial", min_value=0.0, format="%.2f")
-            submitted = st.form_submit_button("Guardar producto")
-            if submitted:
+        nombre = st.text_input("Nombre del producto")
+        precio_venta = st.number_input("Precio de venta (₡)", min_value=0.01, step=0.1, format="%.2f")
+        costo_produccion = st.number_input("Costo de producción (₡)", min_value=0.01, step=0.1, format="%.2f")
+
+        if st.button("Guardar producto"):
+            if nombre and precio_venta and costo_produccion:
                 supabase.table("productos").insert({
                     "nombre": nombre,
-                    "unidad": unidad,
                     "precio_venta": precio_venta,
-                    "costo": costo,
-                    "stock": stock
+                    "costo_produccion": costo_produccion
                 }).execute()
-                st.success("✅ Producto agregado correctamente")
+                st.success("✅ Producto guardado correctamente.")
+                st.rerun()
+            else:
+                st.warning("Por favor, completa todos los campos.")
 
+    st.markdown("### 📋 Lista de Productos")
     productos = obtener_productos()
+
     if productos:
-        st.markdown("### 📋 Lista de Productos Registrados")
-        for prod in productos:
-            with st.expander(f"{prod['nombre']} (Stock: {prod['stock']})"):
-                nuevo_nombre = st.text_input(f"Nombre:", value=prod["nombre"], key=f"n{prod['id']}")
-                nueva_unidad = st.selectbox(f"Unidad:", ["unidad", "gramos", "litros"], index=["unidad", "gramos", "litros"].index(prod["unidad"]), key=f"u{prod['id']}")
-                nuevo_precio = st.number_input(f"Precio de venta (₡):", value=prod["precio_venta"], key=f"pv{prod['id']}")
-                nuevo_costo = st.number_input(f"Costo estimado (₡):", value=prod["costo"], key=f"co{prod['id']}")
-                nuevo_stock = st.number_input(f"Stock disponible:", value=prod["stock"], key=f"st{prod['id']}")
-
+        for p in productos:
+            with st.expander(f"📦 {p['nombre']}"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    if st.button("💾 Actualizar", key=f"up{prod['id']}"):
-                        actualizar_producto(prod["id"], nuevo_nombre, nueva_unidad, nuevo_precio, nuevo_costo, nuevo_stock)
-                        st.success("✅ Producto actualizado")
-                        st.rerun()
+                    nuevo_precio = st.number_input("Precio de venta", value=p["precio_venta"], key=f"precio_{p['id']}")
                 with col2:
-                    if st.button("🗑️ Eliminar", key=f"del{prod['id']}"):
-                        supabase.table("productos").delete().eq("id", prod["id"]).execute()
-                        st.warning("❌ Producto eliminado")
-                        st.rerun()
-    else:
-        st.info("No hay productos registrados todavía.")
-# =============================
-# 🚚 PESTAÑA DE INSUMOS
-# =============================
-if st.session_state.pagina == "Insumos":
-    st.subheader("🚚 Gestión de Insumos")
+                    nuevo_costo = st.number_input("Costo de producción", value=p["costo_produccion"], key=f"costo_{p['id']}")
 
-    with st.expander("➕ Agregar nuevo insumo"):
-        with st.form("form_insumo"):
-            nombre = st.text_input("Nombre del insumo")
-            unidad = st.selectbox("Unidad de medida", ["unidad", "gramos", "litros"])
-            costo_unitario = st.number_input("Costo unitario (₡)", min_value=0.0, format="%.4f")
-            cantidad = st.number_input("Cantidad inicial", min_value=0.0, format="%.2f")
-            submitted = st.form_submit_button("Guardar insumo")
-            if submitted:
-                supabase.table("insumos").insert({
-                    "nombre": nombre,
-                    "unidad": unidad,
-                    "costo_unitario": costo_unitario,
-                    "cantidad": cantidad
-                }).execute()
-                st.success("✅ Insumo agregado correctamente")
-
-    insumos = obtener_insumos()
-    if insumos:
-        st.markdown("### 📋 Lista de Insumos Registrados")
-        for ins in insumos:
-            with st.expander(f"{ins['nombre']} (Cantidad: {ins['cantidad']})"):
-                nuevo_nombre = st.text_input(f"Nombre:", value=ins["nombre"], key=f"in{ins['id']}")
-                nueva_unidad = st.selectbox(f"Unidad:", ["unidad", "gramos", "litros"], index=["unidad", "gramos", "litros"].index(ins["unidad"]), key=f"ui{ins['id']}")
-                nuevo_costo = st.number_input(f"Costo unitario (₡):", value=ins["costo_unitario"], key=f"cu{ins['id']}")
-                nueva_cantidad = st.number_input(f"Cantidad:", value=ins["cantidad"], key=f"ca{ins['id']}")
-
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("💾 Actualizar", key=f"upin{ins['id']}"):
-                        supabase.table("insumos").update({
-                            "nombre": nuevo_nombre,
-                            "unidad": nueva_unidad,
-                            "costo_unitario": nuevo_costo,
-                            "cantidad": nueva_cantidad
-                        }).eq("id", ins["id"]).execute()
-                        st.success("✅ Insumo actualizado")
-                        st.rerun()
-                with col2:
-                    if st.button("🗑️ Eliminar", key=f"delin{ins['id']}"):
-                        supabase.table("insumos").delete().eq("id", ins["id"]).execute()
-                        st.warning("❌ Insumo eliminado")
-                        st.rerun()
-    else:
-        st.info("No hay insumos registrados todavía.")
-# =============================
-# 📋 PESTAÑA DE RECETAS
-# =============================
-if st.session_state.pagina == "Recetas":
-    st.subheader("📋 Gestión de Recetas")
-
-    # === FUNCIONES RECETAS ===
-    def agregar_receta(nombre, instrucciones, insumos):
-        res = supabase.table("recetas").insert({
-            "nombre": nombre,
-            "instrucciones": instrucciones
-        }).execute()
-        receta_id = res.data[0]["id"]
-        for insumo_id, cantidad in insumos:
-            supabase.table("detalle_receta").insert({
-                "receta_id": receta_id,
-                "insumo_id": insumo_id,
-                "cantidad": cantidad
-            }).execute()
-
-    def obtener_recetas():
-        res = supabase.table("recetas").select("*").order("id", desc=True).execute()
-        return res.data
-
-    def obtener_detalle_receta(receta_id):
-        res = supabase.table("detalle_receta").select("cantidad, insumo:insumo_id(nombre, unidad, costo_unitario)").eq("receta_id", receta_id).execute()
-        return res.data
-
-    def eliminar_receta(receta_id):
-        supabase.table("detalle_receta").delete().eq("receta_id", receta_id).execute()
-        supabase.table("recetas").delete().eq("id", receta_id).execute()
-
-    # === FORMULARIO NUEVA RECETA ===
-    with st.expander("➕ Crear nueva receta"):
-        with st.form("form_receta"):
-            nombre_receta = st.text_input("Nombre de la receta")
-            instrucciones = st.text_area("Instrucciones de preparación")
-            imagen = st.file_uploader("📷 Imagen del producto (opcional)", type=["jpg", "jpeg", "png"])
-            ingredientes = []
-            st.markdown("### Selección de insumos:")
-            for ins in obtener_insumos():
-                cantidad = st.number_input(f"{ins['nombre']} ({ins['unidad']})", min_value=0.0, step=0.1, key=f"insumo_{ins['id']}")
-                if cantidad > 0:
-                    ingredientes.append((ins["id"], cantidad))
-            guardar = st.form_submit_button("Guardar receta")
-
-            if guardar:
-                if not nombre_receta or not ingredientes:
-                    st.error("Debes ingresar un nombre y al menos un insumo.")
-                else:
-                    agregar_receta(nombre_receta, instrucciones, ingredientes)
-                    if imagen:
-                        path = f"imagenes_recetas/{nombre_receta.replace(' ', '_')}.jpg"
-                        with open(path, "wb") as f:
-                            f.write(imagen.read())
-                    st.success("✅ Receta guardada correctamente.")
+                if st.button("💾 Guardar cambios", key=f"guardar_{p['id']}"):
+                    supabase.table("productos").update({
+                        "precio_venta": nuevo_precio,
+                        "costo_produccion": nuevo_costo
+                    }).eq("id", p["id"]).execute()
+                    st.success("✅ Producto actualizado.")
                     st.rerun()
 
-    # === LISTA DE RECETAS ===
-    recetas = obtener_recetas()
-    if recetas:
-        for receta in recetas:
-            detalles = obtener_detalle_receta(receta["id"])
-            total = 0
-            desglose = []
-            for item in detalles:
-                nombre = item["insumo"]["nombre"]
-                unidad = item["insumo"]["unidad"]
-                costo_unitario = item["insumo"]["costo_unitario"]
-                cantidad = item["cantidad"]
-                subtotal = cantidad * (costo_unitario / 1000) if unidad in ["kg", "l"] else cantidad * costo_unitario
-                total += subtotal
-                desglose.append((nombre, cantidad, unidad, costo_unitario, subtotal))
+                if st.button("🗑️ Eliminar producto", key=f"eliminar_{p['id']}"):
+                    supabase.table("productos").delete().eq("id", p["id"]).execute()
+                    st.success("🗑️ Producto eliminado.")
+                    st.rerun()
+    else:
+        st.info("No hay productos registrados aún.")
+# =============================
+# 🧂 PESTAÑA DE INSUMOS
+# =============================
+if st.session_state.pagina == "Insumos":
+    st.subheader("🧂 Gestión de Insumos")
 
-            with st.expander(f"🍰 {receta['nombre']} — Costo: ₡{total:,.2f}"):
-                ruta = f"imagenes_recetas/{receta['nombre'].replace(' ', '_')}.jpg"
-                if os.path.exists(ruta):
-                    st.image(ruta, width=300)
+    with st.expander("➕ Agregar nuevo insumo"):
+        nombre_insumo = st.text_input("Nombre del insumo")
+        unidad = st.text_input("Unidad de medida (ej: kg, L, unidades)")
+        cantidad = st.number_input("Cantidad inicial", min_value=0.00, step=0.1, format="%.2f")
 
-                st.markdown(f"**📝 Instrucciones:** {receta.get('instrucciones') or 'Sin instrucciones.'}")
-                st.markdown("**🧾 Ingredientes:**")
-                for d in desglose:
-                    st.markdown(f"- {d[0]}: {d[1]:.2f} {d[2]} (₡{d[3]:.2f} → Subtotal: ₡{d[4]:.2f})")
+        if st.button("Guardar insumo"):
+            if nombre_insumo and unidad:
+                supabase.table("insumos").insert({
+                    "nombre": nombre_insumo,
+                    "unidad": unidad,
+                    "cantidad": cantidad
+                }).execute()
+                st.success("✅ Insumo guardado correctamente.")
+                st.rerun()
+            else:
+                st.warning("Por favor, completa todos los campos.")
 
+    st.markdown("### 📋 Lista de Insumos")
+    insumos = obtener_insumos()
+
+    if insumos:
+        for i in insumos:
+            with st.expander(f"🧂 {i['nombre']}"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    if st.button(f"🗑️ Eliminar", key=f"delrec{receta['id']}"):
-                        eliminar_receta(receta["id"])
-                        if os.path.exists(ruta):
-                            os.remove(ruta)
-                        st.warning("Receta eliminada.")
-                        st.rerun()
+                    nueva_unidad = st.text_input("Unidad de medida", value=i["unidad"], key=f"unidad_{i['id']}")
                 with col2:
-                    if st.button(f"📤 Exportar PDF", key=f"pdf{receta['id']}"):
-                        from io import BytesIO
-                        from fpdf import FPDF
+                    nueva_cantidad = st.number_input("Cantidad disponible", value=i["cantidad"], key=f"cantidad_{i['id']}")
 
-                        pdf = FPDF()
-                        pdf.add_page()
-                        pdf.set_font("Arial", "B", 14)
-                        pdf.cell(0, 10, f"Receta: {receta['nombre']}", ln=True)
+                if st.button("💾 Guardar cambios", key=f"guardar_insumo_{i['id']}"):
+                    supabase.table("insumos").update({
+                        "unidad": nueva_unidad,
+                        "cantidad": nueva_cantidad
+                    }).eq("id", i["id"]).execute()
+                    st.success("✅ Insumo actualizado.")
+                    st.rerun()
 
-                        pdf.set_font("Arial", "", 12)
-                        pdf.cell(0, 10, f"Costo estimado: ₡{total:,.2f}", ln=True)
-                        pdf.ln(5)
-                        pdf.set_font("Arial", "B", 12)
-                        pdf.cell(0, 10, "Ingredientes:", ln=True)
-                        pdf.set_font("Arial", "", 12)
-                        for d in desglose:
-                            linea = f"- {d[0]}: {d[1]:.2f} {d[2]} → Subtotal: ₡{d[4]:,.2f}"
-                            pdf.cell(0, 8, linea, ln=True)
-                        pdf.ln(5)
-                        pdf.set_font("Arial", "B", 12)
-                        pdf.cell(0, 10, "Instrucciones:", ln=True)
-                        pdf.set_font("Arial", "", 12)
-                        for linea in (receta.get("instrucciones") or "Sin instrucciones").split("\n"):
-                            pdf.multi_cell(0, 8, linea)
-
-                        buffer = BytesIO()
-                        pdf.output(buffer)
-                        st.download_button("📥 Descargar PDF", data=buffer.getvalue(), file_name=f"{receta['nombre']}.pdf", mime="application/pdf")
+                if st.button("🗑️ Eliminar insumo", key=f"eliminar_insumo_{i['id']}"):
+                    supabase.table("insumos").delete().eq("id", i["id"]).execute()
+                    st.success("🗑️ Insumo eliminado.")
+                    st.rerun()
     else:
-        st.info("No hay recetas registradas todavía.")
+        st.info("No hay insumos registrados aún.")
+# =============================
+# 📄 PESTAÑA DE RECETAS
+# =============================
+if st.session_state.pagina == "Recetas":
+    st.subheader("📄 Recetario de Productos")
+
+    productos = obtener_productos()
+    insumos = obtener_insumos()
+
+    if not productos or not insumos:
+        st.warning("Debés tener productos e insumos registrados para usar esta sección.")
+        st.stop()
+
+    with st.expander("➕ Agregar ingrediente a receta"):
+        producto_nombres = [p["nombre"] for p in productos]
+        insumo_nombres = [i["nombre"] for i in insumos]
+
+        producto_seleccionado = st.selectbox("Producto", producto_nombres)
+        insumo_seleccionado = st.selectbox("Insumo", insumo_nombres)
+        cantidad_necesaria = st.number_input("Cantidad necesaria", min_value=0.01, step=0.1)
+
+        if st.button("Agregar a receta"):
+            producto = next(p for p in productos if p["nombre"] == producto_seleccionado)
+            insumo = next(i for i in insumos if i["nombre"] == insumo_seleccionado)
+
+            supabase.table("recetas").insert({
+                "producto_id": producto["id"],
+                "producto": producto["nombre"],
+                "insumo_id": insumo["id"],
+                "insumo": insumo["nombre"],
+                "cantidad": cantidad_necesaria
+            }).execute()
+
+            st.success("✅ Ingrediente agregado a la receta.")
+            st.rerun()
+
+    st.markdown("### 📋 Recetas registradas")
+    recetas = obtener_recetas()
+
+    if recetas:
+        df = pd.DataFrame(recetas)
+        for producto in df["producto"].unique():
+            st.markdown(f"#### 🧁 {producto}")
+            sub_df = df[df["producto"] == producto][["insumo", "cantidad"]].rename(columns={
+                "insumo": "Ingrediente",
+                "cantidad": "Cantidad"
+            })
+            st.dataframe(sub_df, use_container_width=True)
+    else:
+        st.info("Aún no hay recetas registradas.")
 # =============================
 # 💰 PESTAÑA DE VENTAS
 # =============================
 if st.session_state.pagina == "Ventas":
     st.subheader("💰 Registro de Ventas")
 
-    # === FUNCIONES AUXILIARES ===
-    def registrar_venta_en_db(producto, unidad, cantidad, ingreso, costo, ganancia, fecha):
+    productos = obtener_productos()
+    if not productos:
+        st.info("Debes registrar productos antes de registrar ventas.")
+        st.stop()
+
+    producto_nombres = [p["nombre"] for p in productos]
+    producto_seleccionado = st.selectbox("Selecciona un producto", producto_nombres)
+    cantidad = st.number_input("Cantidad vendida", min_value=0.01, step=0.1, format="%.2f")
+    fecha_venta = st.date_input("Fecha de la venta", value=datetime.today())
+
+    if st.button("Registrar venta"):
+        producto = next(p for p in productos if p["nombre"] == producto_seleccionado)
+        ingreso = producto["precio_venta"] * cantidad
+        costo = producto["costo_produccion"] * cantidad
+        ganancia = ingreso - costo
+
         supabase.table("ventas").insert({
-            "producto": producto,
-            "unidad": unidad,
+            "producto_id": producto["id"],
+            "producto": producto["nombre"],
             "cantidad": cantidad,
             "ingreso": ingreso,
             "costo": costo,
             "ganancia": ganancia,
-            "fecha": fecha
+            "fecha": fecha_venta.isoformat()
         }).execute()
 
-    def actualizar_venta(venta_id, cantidad, ingreso, costo, ganancia):
-        supabase.table("ventas").update({
-            "cantidad": cantidad,
-            "ingreso": ingreso,
-            "costo": costo,
-            "ganancia": ganancia
-        }).eq("id", venta_id).execute()
+        st.success("✅ Venta registrada correctamente.")
+        st.rerun()
 
-    def eliminar_venta(venta_id):
-        supabase.table("ventas").delete().eq("id", venta_id).execute()
-
-    productos = obtener_productos()
-    if not productos:
-        st.warning("⚠️ No hay productos disponibles.")
-    else:
-        nombres_productos = [f"{p['nombre']} ({p['unidad']})" for p in productos]
-        seleccionado = st.selectbox("Selecciona el producto vendido", nombres_productos)
-        prod = next(p for p in productos if f"{p['nombre']} ({p['unidad']})" == seleccionado)
-
-        st.markdown(f"💵 Precio de venta: ₡{prod['precio_venta']:.2f}")
-        st.markdown(f"🧾 Costo de elaboración: ₡{prod['costo']:.2f}")
-        st.markdown(f"📦 Stock actual: {prod['stock']:.2f} {prod['unidad']}")
-
-        cantidad = st.number_input("Cantidad vendida", min_value=0.0, step=0.1)
-        if st.button("💾 Registrar venta"):
-            if cantidad <= 0:
-                st.error("⚠️ Ingresa una cantidad válida.")
-            elif cantidad > prod['stock']:
-                st.error("❌ No hay suficiente stock disponible.")
-            else:
-                ingreso = round(cantidad * prod["precio_venta"], 2)
-                costo = round(cantidad * prod["costo"], 2)
-                ganancia = ingreso - costo
-                fecha = datetime.now().strftime("%Y-%m-%d")
-                registrar_venta_en_db(prod["nombre"], prod["unidad"], cantidad, ingreso, costo, ganancia, fecha)
-                actualizar_producto(prod["id"], prod["nombre"], prod["unidad"], prod["precio_venta"], prod["costo"], prod["stock"] - cantidad)
-                st.success("✅ Venta registrada correctamente.")
-                st.rerun()
-
-    # === HISTORIAL DE VENTAS ===
+    st.markdown("### 📋 Historial de Ventas")
     ventas = obtener_ventas()
     if ventas:
-        st.markdown("### 📋 Historial de Ventas")
         df = pd.DataFrame(ventas)
         df["fecha"] = pd.to_datetime(df["fecha"]).dt.strftime("%d/%m/%Y")
-        df["ingreso"] = df["ingreso"].map(lambda x: f"₡{x:,.2f}")
-        df["costo"] = df["costo"].map(lambda x: f"₡{x:,.2f}")
-        df["ganancia"] = df["ganancia"].map(lambda x: f"₡{x:,.2f}")
-        df["cantidad"] = df["cantidad"].map(lambda x: f"{x:.2f}")
-        st.dataframe(df.drop(columns=["id"]), use_container_width=True)
+        df["ingreso"] = df["ingreso"].apply(lambda x: f"₡{x:,.2f}")
+        df["costo"] = df["costo"].apply(lambda x: f"₡{x:,.2f}")
+        df["ganancia"] = df["ganancia"].apply(lambda x: f"₡{x:,.2f}")
+        df["cantidad"] = df["cantidad"].apply(lambda x: f"{x:.2f}")
 
-        total_ingresos = sum(float(v["ingreso"].replace("₡", "").replace(",", "")) for v in ventas)
-        total_ganancia = sum(float(v["ganancia"].replace("₡", "").replace(",", "")) for v in ventas)
-
-        st.markdown(f"**Total ingresos:** ₡{total_ingresos:,.2f}")
-        st.markdown(f"**Total ganancia:** ₡{total_ganancia:,.2f}")
-
-        st.markdown("### ✏️ Editar o eliminar una venta")
-        seleccion = st.selectbox("Selecciona una venta por ID", [f"{v['id']} - {v['producto']}" for v in ventas])
-        venta_id = int(seleccion.split(" - ")[0])
-        venta = next(v for v in ventas if v["id"] == venta_id)
-
-        nueva_cantidad = st.number_input("Nueva cantidad vendida", value=float(venta["cantidad"]), min_value=0.1, step=0.1, key="editcantidad")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Actualizar venta"):
-                producto = next(p for p in productos if p["nombre"] == venta["producto"])
-                nuevo_ingreso = round(nueva_cantidad * producto["precio_venta"], 2)
-                nuevo_costo = round(nueva_cantidad * producto["costo"], 2)
-                nueva_ganancia = nuevo_ingreso - nuevo_costo
-                actualizar_venta(venta_id, nueva_cantidad, nuevo_ingreso, nuevo_costo, nueva_ganancia)
-                st.success("✅ Venta actualizada.")
-                st.rerun()
-        with col2:
-            if st.button("Eliminar venta"):
-                eliminar_venta(venta_id)
-                st.warning("🗑️ Venta eliminada.")
+        st.dataframe(df[["fecha", "producto", "cantidad", "ingreso", "costo", "ganancia"]].rename(columns={
+            "fecha": "Fecha", "producto": "Producto", "cantidad": "Cantidad", "ingreso": "Ingreso",
+            "costo": "Costo", "ganancia": "Ganancia"
+        }), use_container_width=True)
+    else:
+        st.info("No hay ventas registradas aún.")
 # =============================
-# 📊 PESTAÑA DE BALANCE
+# 📊 PESTAÑA DE BALANCE GENERAL
 # =============================
 if st.session_state.pagina == "Balance":
     st.subheader("📊 Balance General del Negocio")
 
-    st.markdown("### 📅 Selecciona un rango de fechas")
-    col1, col2 = st.columns(2)
-    with col1:
-        fecha_inicio = st.date_input("Desde", value=datetime.today().replace(day=1))
-    with col2:
-        fecha_fin = st.date_input("Hasta", value=datetime.today())
-
-    # === Inventario de Insumos ===
-    insumos = obtener_insumos()
-    if insumos:
-        df_insumos = pd.DataFrame(insumos)
-        unidad_legible = {
-            "kg": "kilogramos", "g": "gramos", "l": "litros", "ml": "mililitros",
-            "barra": "barras", "unidad": "unidades", "gramos": "gramos", "litros": "litros"
-        }
-        df_insumos["Unidad"] = df_insumos["unidad"].map(unidad_legible)
-        df_insumos["Total (₡)"] = df_insumos["costo_unitario"] * df_insumos["cantidad"]
-        df_insumos["Costo Unitario"] = df_insumos["costo_unitario"].apply(lambda x: f"₡{x:,.2f}")
-        df_insumos["Total (₡)"] = df_insumos["Total (₡)"].apply(lambda x: f"₡{x:,.2f}")
-        total_inventario = sum(i["costo_unitario"] * i["cantidad"] for i in insumos)
-
-        st.markdown("### 📦 Valor del inventario de insumos")
-        st.dataframe(df_insumos[["nombre", "Unidad", "cantidad", "Costo Unitario", "Total (₡)"]].rename(columns={
-            "nombre": "Nombre", "cantidad": "Cantidad"
-        }), use_container_width=True)
-        st.markdown(f"**🔹 Total inventario:** ₡{total_inventario:,.2f}")
-    else:
-        st.info("ℹ️ No hay insumos registrados.")
-
-    st.divider()
-
-    # === Ventas filtradas ===
-    st.markdown("### 💰 Ventas registradas en el período")
     ventas = obtener_ventas()
+
     if ventas:
-        df_ventas = pd.DataFrame(ventas)
-        df_ventas["fecha"] = pd.to_datetime(df_ventas["fecha"])
-        df_filtrado = df_ventas[
-            (df_ventas["fecha"] >= pd.to_datetime(fecha_inicio)) &
-            (df_ventas["fecha"] <= pd.to_datetime(fecha_fin))
-        ]
+        df = pd.DataFrame(ventas)
+        df["fecha"] = pd.to_datetime(df["fecha"])
 
-        if not df_filtrado.empty:
-            total_ingresos = df_filtrado["ingreso"].sum()
-            total_costos = df_filtrado["costo"].sum()
-            total_ganancia = df_filtrado["ganancia"].sum()
+        ingreso_total = df["ingreso"].sum()
+        costo_total = df["costo"].sum()
+        ganancia_total = df["ganancia"].sum()
 
-            df_filtrado["fecha"] = df_filtrado["fecha"].dt.strftime("%d/%m/%Y")
-            df_filtrado["cantidad"] = df_filtrado["cantidad"].apply(lambda x: f"{x:.2f}")
-            df_filtrado["ingreso"] = df_filtrado["ingreso"].apply(lambda x: f"₡{x:,.2f}")
-            df_filtrado["costo"] = df_filtrado["costo"].apply(lambda x: f"₡{x:,.2f}")
-            df_filtrado["ganancia"] = df_filtrado["ganancia"].apply(lambda x: f"₡{x:,.2f}")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("💰 Ingresos Totales", f"₡{ingreso_total:,.2f}")
+        with col2:
+            st.metric("💸 Costos Totales", f"₡{costo_total:,.2f}")
+        with col3:
+            st.metric("📈 Ganancia Neta", f"₡{ganancia_total:,.2f}")
 
-            st.dataframe(df_filtrado.drop(columns=["id"]), use_container_width=True)
-            st.markdown(f"- **🟢 Ingresos:** ₡{total_ingresos:,.2f}")
-            st.markdown(f"- **🧾 Costos:** ₡{total_costos:,.2f}")
-            st.markdown(f"- **📈 Ganancia total:** ₡{total_ganancia:,.2f}")
+        st.markdown("### 📅 Ventas por Fecha")
+        df["fecha_str"] = df["fecha"].dt.strftime("%d/%m/%Y")
+        resumen = df.groupby("fecha_str")[["ingreso", "costo", "ganancia"]].sum().reset_index()
+        resumen = resumen.rename(columns={
+            "fecha_str": "Fecha",
+            "ingreso": "Ingreso (₡)",
+            "costo": "Costo (₡)",
+            "ganancia": "Ganancia (₡)"
+        })
 
-            st.divider()
-            st.markdown("### 📉 Comparativo resumen")
-            st.markdown(f"🔸 **Valor actual del inventario:** ₡{total_inventario:,.2f}")
-            st.markdown(f"🔸 **Ganancia generada en período:** ₡{total_ganancia:,.2f}")
-            balance_total = total_ingresos - total_inventario
-            st.markdown(f"🔸 **Balance estimado (ingresos - inventario):** ₡{balance_total:,.2f}")
-        else:
-            st.info("ℹ️ No hay ventas registradas en el rango seleccionado.")
+        st.dataframe(resumen, use_container_width=True)
     else:
-        st.info("ℹ️ No hay ventas registradas.")
+        st.info("No hay ventas registradas aún para calcular el balance.")
+# =============================
+# 🔁 PESTAÑA DE ENTRADAS/SALIDAS
+# =============================
+if st.session_state.pagina == "Entradas/Salidas":
+    st.subheader("🔁 Registro de Entradas y Salidas de Insumos")
+
+    insumos = obtener_insumos()
+    if not insumos:
+        st.info("No hay insumos registrados aún.")
+        st.stop()
+
+    tipo_mov = st.selectbox("Tipo de movimiento", ["Entrada", "Salida"])
+    insumo_nombres = [i["nombre"] for i in insumos]
+    insumo_seleccionado = st.selectbox("Selecciona un insumo", insumo_nombres)
+    cantidad = st.number_input("Cantidad", min_value=0.01, step=0.1, format="%.2f")
+    fecha = st.date_input("Fecha del movimiento", value=datetime.today())
+
+    if st.button("Registrar movimiento"):
+        insumo = next(i for i in insumos if i["nombre"] == insumo_seleccionado)
+        nueva_cantidad = (
+            insumo["cantidad"] + cantidad if tipo_mov == "Entrada"
+            else insumo["cantidad"] - cantidad
+        )
+
+        if nueva_cantidad < 0:
+            st.error("❌ No hay suficiente cantidad para realizar esta salida.")
+        else:
+            # Actualizar cantidad del insumo
+            supabase.table("insumos").update({"cantidad": nueva_cantidad}).eq("id", insumo["id"]).execute()
+
+            # Registrar movimiento
+            supabase.table("movimientos").insert({
+                "insumo_id": insumo["id"],
+                "tipo": tipo_mov,
+                "cantidad": cantidad,
+                "fecha": fecha.isoformat()
+            }).execute()
+
+            st.success("✅ Movimiento registrado exitosamente.")
+            st.rerun()
+
+    # Mostrar historial reciente de movimientos
+    st.markdown("### 📋 Historial reciente de movimientos")
+    movs = obtener_movimientos()
+    if movs:
+        df_mov = pd.DataFrame(movs)
+        df_mov["fecha"] = pd.to_datetime(df_mov["fecha"]).dt.strftime("%d/%m/%Y")
+        id_to_nombre = {i["id"]: i["nombre"] for i in insumos}
+        df_mov["insumo"] = df_mov["insumo_id"].map(id_to_nombre)
+        df_mov = df_mov.rename(columns={
+            "fecha": "Fecha",
+            "tipo": "Tipo",
+            "cantidad": "Cantidad",
+            "insumo": "Insumo"
+        })
+        st.dataframe(df_mov[["Fecha", "Insumo", "Tipo", "Cantidad"]], use_container_width=True)
+    else:
+        st.info("No hay movimientos registrados aún.")
