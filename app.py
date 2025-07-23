@@ -67,6 +67,7 @@ def generar_pdf_receta(nombre, instrucciones, ingredientes, costo_total):
 # === INICIALIZAR SESIÓN DE NAVEGACIÓN ===
 if "pagina_activa" not in st.session_state:
     st.session_state.pagina_activa = "Inicio"
+
 # === ESTILO PERSONALIZADO PROFESIONAL ===
 st.markdown("""
     <style>
@@ -112,7 +113,7 @@ with st.sidebar:
             "nav-link-selected": {"background-color": "#00e6c3", "color": "#1c1c1c", "font-weight": "bold"},
         }
     )
-    st.session_state.pagina_activa = pagina  # Actualizar automáticamente sin doble clic
+    st.session_state.pagina_activa = pagina  # cambio inmediato
 
 # === PÁGINA DE INICIO ===
 if st.session_state.pagina_activa == "Inicio":
@@ -124,29 +125,24 @@ if st.session_state.pagina_activa == "Inicio":
     with col1:
         if st.button("📦 Ir a Productos"):
             st.session_state.pagina_activa = "Productos"
-            st.experimental_rerun()
     with col2:
         if st.button("🚚 Ir a Insumos"):
             st.session_state.pagina_activa = "Insumos"
-            st.experimental_rerun()
     with col3:
         if st.button("📋 Ir a Recetas"):
             st.session_state.pagina_activa = "Recetas"
-            st.experimental_rerun()
 
     col4, col5, col6 = st.columns(3)
     with col4:
         if st.button("🔄 Ir a Entradas/Salidas"):
             st.session_state.pagina_activa = "Entradas/Salidas"
-            st.experimental_rerun()
     with col5:
         if st.button("💵 Ir a Ventas"):
             st.session_state.pagina_activa = "Ventas"
-            st.experimental_rerun()
     with col6:
         if st.button("📈 Ir a Balance"):
             st.session_state.pagina_activa = "Balance"
-            st.experimental_rerun()
+
 # === PRODUCTOS ===
 if st.session_state.pagina_activa == "Productos":
     st.header("📦 Gestión de Productos")
