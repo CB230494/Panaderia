@@ -1,2 +1,4 @@
-fpdf
+streamlit
 streamlit-option-menu
+fpdf
+supabase
