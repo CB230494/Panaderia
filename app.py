@@ -1,8 +1,13 @@
+# === IMPORTACIONES BASE ===
 import streamlit as st
 from streamlit_option_menu import option_menu
 import pandas as pd
 from pathlib import Path
-from exportar_pdf import generar_pdf_receta
+from datetime import datetime
+
+# Elimina esta línea si ya incluiste generar_pdf_receta directamente en app.py
+# from exportar_pdf import generar_pdf_receta
+
 from database.bd_ingresar import (
     crear_tabla_productos, agregar_producto, obtener_productos, actualizar_producto, eliminar_producto,
     crear_tabla_insumos, agregar_insumo, obtener_insumos, actualizar_insumo, eliminar_insumo,
@@ -11,14 +16,13 @@ from database.bd_ingresar import (
     crear_tabla_ventas, registrar_venta_en_db, obtener_ventas, actualizar_venta, eliminar_venta
 )
 
-
-
 # === CONFIGURACIÓN GENERAL ===
 st.set_page_config(page_title="Panadería Moderna", layout="wide")
 
-# === INICIALIZAR ESTADO DE NAVEGACIÓN ===
+# === ESTADO DE NAVEGACIÓN ===
 if "pagina" not in st.session_state:
     st.session_state.pagina = "Inicio"
+
 # === ESTILO PERSONALIZADO ===
 st.markdown("""
     <style>
@@ -66,13 +70,13 @@ with st.sidebar:
             "nav-link-selected": {"background-color": "#00ffcc", "color": "#121212", "font-weight": "bold"},
         }
     )
-# === CREAR TABLAS AL INICIAR ===
+
+# === CREACIÓN DE TABLAS AL INICIAR ===
 crear_tabla_productos()
 crear_tabla_insumos()
 crear_tabla_recetas()
 crear_tabla_entradas_salidas() 
 crear_tabla_ventas()
-
 # === INICIO ===
 if st.session_state.pagina == "Inicio":
     st.markdown("## 📊 Sistema de Gestión - Panadería ")
@@ -105,6 +109,7 @@ if st.session_state.pagina == "Inicio":
         if st.button("📈 Balance"):
             st.session_state.pagina = "Balance"
             st.rerun()
+
 # === PRODUCTOS ===
 if st.session_state.pagina == "Productos":
     st.subheader("📦 Gestión de Productos")
@@ -141,6 +146,7 @@ if st.session_state.pagina == "Productos":
             return 'background-color: red; color: white' if val < 5 else ''
         styled_df = df.style.applymap(color_stock, subset=["Stock"])
         st.dataframe(styled_df, use_container_width=True)
+
         st.markdown("### ✏️ Editar o eliminar un producto")
         nombres_disponibles = [producto[1] for producto in productos]
         seleccion = st.selectbox("Seleccionar producto por nombre", nombres_disponibles)
@@ -290,10 +296,6 @@ if st.session_state.pagina == "Insumos":
                 st.rerun()
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
-
-
-
-
 # =============================
 # 📋 PESTAÑA DE RECETAS
 # =============================
@@ -431,8 +433,6 @@ if st.session_state.pagina == "Recetas":
                         st.rerun()
     else:
         st.info("ℹ️ No hay recetas registradas todavía.")
-
-
 # =============================
 # 📤 PESTAÑA DE ENTRADAS Y SALIDAS
 # =============================
@@ -475,7 +475,6 @@ if st.session_state.pagina == "Entradas/Salidas":
         if tipo_movimiento == "Salida" and cantidad > cantidad_actual:
             st.error("❌ No hay suficiente stock para realizar la salida.")
         else:
-            from datetime import datetime
             fecha_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             registrar_movimiento(insumo_id, tipo_movimiento, cantidad, fecha_hora, motivo)
             st.success(f"✅ {tipo_movimiento} registrada correctamente.")
@@ -509,15 +508,10 @@ if st.session_state.pagina == "Entradas/Salidas":
         st.dataframe(df_bajo.style.highlight_max(axis=0, color="salmon"), use_container_width=True)
     else:
         st.success("✅ Todos los insumos tienen suficiente stock.")
-
-
-
-
 # =============================
 # 💰 PESTAÑA DE VENTAS
 # =============================
 if st.session_state.pagina == "Ventas":
-    from datetime import datetime
     st.subheader("💰 Registro de Ventas de Productos")
 
     productos = obtener_productos()
@@ -574,13 +568,13 @@ if st.session_state.pagina == "Ventas":
         st.markdown(f"**💵 Total ingresos:** ₡{total_ingresos:,.2f}")
         st.markdown(f"**📈 Total ganancias:** ₡{total_ganancias:,.2f}")
 
-        # Identificar producto más vendido
+        # Producto más vendido
         df_crudo = pd.DataFrame(ventas, columns=["ID", "Producto", "Unidad", "Cantidad", "Ingreso", "Costo", "Ganancia", "Fecha"])
         producto_estrella = df_crudo.groupby("Producto")["Cantidad"].sum().idxmax()
         cantidad_estrella = df_crudo.groupby("Producto")["Cantidad"].sum().max()
         st.success(f"🌟 Producto estrella: **{producto_estrella}** con **{cantidad_estrella:.2f}** unidades vendidas")
 
-        # Editar/eliminar
+        # Editar/eliminar ventas
         st.markdown("### ✏️ Editar o eliminar una venta")
         ids_ventas = [f"{v[0]} - {v[1]} ({v[3]:.2f})" for v in ventas]
         seleccion_id = st.selectbox("Selecciona una venta", ids_ventas)
@@ -606,14 +600,10 @@ if st.session_state.pagina == "Ventas":
                 st.rerun()
     else:
         st.info("ℹ️ Aún no hay ventas registradas.")
-
-
 # =============================
 # 📊 PESTAÑA DE BALANCE
 # =============================
 if st.session_state.pagina == "Balance":
-    from datetime import datetime
-
     st.subheader("📊 Balance General del Negocio")
 
     # ==== Selección de rango de fechas ====
@@ -629,7 +619,6 @@ if st.session_state.pagina == "Balance":
     if insumos:
         df_insumos = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Unitario", "Cantidad"])
 
-        # Unidades legibles
         unidad_legible = {
             "kg": "kilogramos",
             "g": "gramos",
@@ -644,7 +633,7 @@ if st.session_state.pagina == "Balance":
         df_insumos["Costo Unitario"] = df_insumos["Costo Unitario"].apply(lambda x: f"₡{x:,.2f}")
         df_insumos["Total (₡)"] = df_insumos["Total (₡)"].apply(lambda x: f"₡{x:,.2f}")
 
-        total_inventario_num = sum([i[3] * i[4] for i in insumos])  # cálculo bruto sin formato
+        total_inventario_num = sum([i[3] * i[4] for i in insumos])  # sin formato
 
         st.markdown("### 📦 Valor del inventario de insumos")
         st.dataframe(df_insumos[["Nombre", "Unidad", "Cantidad", "Costo Unitario", "Total (₡)"]], use_container_width=True)
@@ -662,8 +651,10 @@ if st.session_state.pagina == "Balance":
         df_ventas = pd.DataFrame(ventas, columns=["ID", "Producto", "Unidad", "Cantidad", "Ingreso (₡)", "Costo (₡)", "Ganancia (₡)", "Fecha"])
         df_ventas["Fecha"] = pd.to_datetime(df_ventas["Fecha"], format="%d/%m/%Y")
 
-        # Filtrar por fechas seleccionadas
-        df_ventas_filtrado = df_ventas[(df_ventas["Fecha"] >= pd.to_datetime(fecha_inicio)) & (df_ventas["Fecha"] <= pd.to_datetime(fecha_fin))]
+        df_ventas_filtrado = df_ventas[
+            (df_ventas["Fecha"] >= pd.to_datetime(fecha_inicio)) &
+            (df_ventas["Fecha"] <= pd.to_datetime(fecha_fin))
+        ]
 
         if not df_ventas_filtrado.empty:
             total_ingresos = df_ventas_filtrado["Ingreso (₡)"].sum()
@@ -693,5 +684,6 @@ if st.session_state.pagina == "Balance":
             st.info("ℹ️ No hay ventas registradas en el rango seleccionado.")
     else:
         st.info("ℹ️ No hay ventas registradas.")
+
 
 
