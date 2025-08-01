@@ -600,6 +600,8 @@ if st.session_state.pagina == "Ventas":
                 st.rerun()
     else:
         st.info("ℹ️ Aún no hay ventas registradas.")
+        mostrar_descarga_db()
+
 # =============================
 # 📊 PESTAÑA DE BALANCE
 # =============================
