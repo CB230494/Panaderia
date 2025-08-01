@@ -15,6 +15,23 @@ from database.bd_ingresar import (
     crear_tabla_entradas_salidas, registrar_movimiento, obtener_historial_movimientos,
     crear_tabla_ventas, registrar_venta_en_db, obtener_ventas, actualizar_venta, eliminar_venta
 )
+import os
+import streamlit as st
+
+def mostrar_descarga_db():
+    ruta_db = os.path.abspath("panaderia.db")
+    st.info(f"📁 Ruta actual de la base de datos:\n`{ruta_db}`")
+
+    if os.path.exists(ruta_db):
+        with open(ruta_db, "rb") as f:
+            st.download_button(
+                label="📥 Descargar base de datos",
+                data=f,
+                file_name="panaderia.db",
+                mime="application/octet-stream"
+            )
+    else:
+        st.error("⚠️ No se encontró el archivo de base de datos.")
 
 # === CONFIGURACIÓN GENERAL ===
 st.set_page_config(page_title="Panadería Moderna", layout="wide")
@@ -600,6 +617,7 @@ if st.session_state.pagina == "Ventas":
                 st.rerun()
     else:
         st.info("ℹ️ Aún no hay ventas registradas.")
+mostrar_descarga_db()
 
 # =============================
 # 📊 PESTAÑA DE BALANCE
