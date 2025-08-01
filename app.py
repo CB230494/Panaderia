@@ -686,4 +686,21 @@ if st.session_state.pagina == "Balance":
         st.info("ℹ️ No hay ventas registradas.")
 
 
+import base64
+from pathlib import Path
+
+def mostrar_descarga_db():
+    file_path = Path("panaderia.db")
+    if file_path.exists():
+        with open(file_path, "rb") as f:
+            bytes_db = f.read()
+            b64 = base64.b64encode(bytes_db).decode()
+            st.markdown(
+                f'<a href="data:file/db;base64,{b64}" download="panaderia.db">📥 Descargar base de datos (panaderia.db)</a>',
+                unsafe_allow_html=True
+            )
+    else:
+        st.warning("⚠️ La base de datos aún no ha sido generada.")
+
+
 
