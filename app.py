@@ -15,24 +15,6 @@ from database.bd_ingresar import (
     crear_tabla_entradas_salidas, registrar_movimiento, obtener_historial_movimientos,
     crear_tabla_ventas, registrar_venta_en_db, obtener_ventas, actualizar_venta, eliminar_venta
 )
-import base64
-from pathlib import Path
-
-def mostrar_descarga_db():
-    file_path = Path("panaderia.db")
-    if file_path.exists():
-        with open(file_path, "rb") as f:
-            bytes_db = f.read()
-            b64 = base64.b64encode(bytes_db).decode()
-            st.markdown(
-                f'<div style="margin-top: 30px;">'
-                f'<a href="data:file/db;base64,{b64}" download="panaderia.db" '
-                f'style="font-size:18px; font-weight:bold; color:#00ffcc;">📥 Descargar base de datos (panaderia.db)</a>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-    else:
-        st.warning("⚠️ La base de datos aún no ha sido generada.")
 
 # === CONFIGURACIÓN GENERAL ===
 st.set_page_config(page_title="Panadería Moderna", layout="wide")
@@ -618,7 +600,6 @@ if st.session_state.pagina == "Ventas":
                 st.rerun()
     else:
         st.info("ℹ️ Aún no hay ventas registradas.")
-        mostrar_descarga_db()
 
 # =============================
 # 📊 PESTAÑA DE BALANCE
