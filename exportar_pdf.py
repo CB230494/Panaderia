@@ -1,4 +1,4 @@
- from fpdf import FPDF
+from fpdf import FPDF
 from pathlib import Path
 import unicodedata
 
