@@ -432,6 +432,15 @@ if st.session_state.pagina == "Insumos":
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
 
+import glob, os
+from pathlib import Path
+r = [Path(p).resolve() for p in glob.glob("**/*.db", recursive=True)]
+st.write("Archivos .db encontrados:", r)
+if r:
+    with open(r[0], "rb") as f:
+        st.download_button("📥 Descargar base de datos", f, file_name=r[0].name)
+
+
 # =============================
 # 📋 PESTAÑA DE RECETAS
 # =============================
@@ -849,6 +858,7 @@ if st.session_state.pagina == "Balance":
             st.info("ℹ️ No hay ventas registradas en el rango seleccionado.")
     else:
         st.info("ℹ️ No hay ventas registradas.")
+
 
 
 
