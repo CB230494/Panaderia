@@ -4,6 +4,7 @@ from streamlit_option_menu import option_menu
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
 
 # Elimina esta línea si ya incluiste generar_pdf_receta directamente en app.py
 # from exportar_pdf import generar_pdf_receta
@@ -25,7 +26,7 @@ def _safe_ext(filename: str) -> str:
     ext = Path(filename).suffix.lower()
     return ext if ext in (".jpg", ".jpeg", ".png") else ".png"
 
-def _img_path_for(nombre: str) -> Path | None:
+def _img_path_for(nombre: str) -> Optional[Path]:
     base = Path("imagenes_recetas")
     for ext in (".jpg", ".jpeg", ".png"):
         p = base / f"{nombre.replace(' ', '_')}{ext}"
@@ -34,26 +35,25 @@ def _img_path_for(nombre: str) -> Path | None:
     return None
 
 def _latin(s: str) -> str:
-    """Convierte a latin-1 seguro para FPDF (evita errores con tildes/ñ)."""
+    """Convierte a latin-1 seguro para FPDF (evita errores con tildes/ñ y símbolos)."""
     if not s:
         return ""
     return unicodedata.normalize("NFKD", s).encode("latin-1", "ignore").decode("latin-1")
 
-def generar_pdf_receta(nombre, instrucciones, desglose, costo_total, ruta_img):
+def generar_pdf_receta(nombre: str, instrucciones: str, desglose: list, costo_total: float, ruta_img: Optional[Path]) -> bytes:
     """
     PDF 1 página, estilo panadería (café & beige).
     - desglose: [(nombre_insumo, cantidad, unidad, costo_unit, subtotal)]
     - ruta_img: Path o None
     """
     # Paleta
-    CAFE = (141, 90, 58)       # header
-    BEIGE = (245, 233, 215)    # encabezado tabla
+    CAFE = (141, 90, 58)         # header café
+    BEIGE = (245, 233, 215)      # encabezado tabla
     BEIGE_SUAVE = (236, 211, 179)  # fila total
     TEXTO = (35, 35, 35)
-    AZUL_LINK = (0, 102, 204)  # para títulos secundarios
 
     pdf = FPDF("P", "mm", "A4")
-    pdf.set_auto_page_break(False)  # evita página extra
+    pdf.set_auto_page_break(False)  # evita página extra automática
     pdf.add_page()
 
     # ===== Encabezado =====
@@ -71,7 +71,7 @@ def generar_pdf_receta(nombre, instrucciones, desglose, costo_total, ruta_img):
     y_table = 48
     if ruta_img and Path(ruta_img).exists():
         try:
-            # Altura fija para no desbordar; ancho se ajusta automáticamente
+            # Altura controlada para no desbordar; ancho se ajusta automáticamente
             pdf.image(str(ruta_img), x=12, y=48, h=55)
             y_table = 48 + 55 + 6  # tabla debajo de la imagen
         except Exception:
@@ -84,18 +84,18 @@ def generar_pdf_receta(nombre, instrucciones, desglose, costo_total, ruta_img):
     pdf.set_fill_color(*BEIGE)
 
     # ancho útil = 210 - 24 = 186
-    cols = [86, 35, 33, 32]  # Ingrediente | Cantidad | ₡ Unit. | Subtotal
-    headers = ["Ingrediente", "Cantidad", "₡ Unit.", "Subtotal"]
-    for w, h in zip(cols, headers):
-        pdf.cell(w, 9, _latin(h), border=1, align="C", fill=True)
+    cols = [86, 35, 33, 32]  # Ingrediente | Cantidad | Unit. | Subtotal
+    headers = ["Ingrediente", "Cantidad", "Unit.", "Subtotal"]
+    for w, hdr in zip(cols, headers):
+        pdf.cell(w, 9, _latin(hdr), border=1, align="C", fill=True)
     pdf.ln(9)
 
     pdf.set_font("Helvetica", "", 10)
     for (nom_i, cant, uni, costo_u, subtotal) in desglose:
-        pdf.cell(cols[0], 8, _latin(str(nom_i)), border=1)                          # Ingrediente
-        pdf.cell(cols[1], 8, _latin(f"{cant:.2f} {uni}"), border=1, align="C")      # Cantidad
-        pdf.cell(cols[2], 8, _latin(f"{costo_u:,.2f}"), border=1, align="R")        # ₡ Unit.
-        pdf.cell(cols[3], 8, _latin(f"{subtotal:,.2f}"), border=1, align="R")       # Subtotal
+        pdf.cell(cols[0], 8, _latin(str(nom_i)), border=1)                         # Ingrediente
+        pdf.cell(cols[1], 8, _latin(f"{cant:.2f} {uni}"), border=1, align="C")     # Cantidad
+        pdf.cell(cols[2], 8, _latin(f"{costo_u:,.2f}"), border=1, align="R")       # Unit.
+        pdf.cell(cols[3], 8, _latin(f"{subtotal:,.2f}"), border=1, align="R")      # Subtotal
         pdf.ln(8)
 
     pdf.set_font("Helvetica", "B", 11)
@@ -489,8 +489,7 @@ if st.session_state.pagina == "Recetas":
                 st.markdown("**🧾 Ingredientes:**")
                 for nombre_i, cant_i, unidad_i, costo_u, subtotal in desglose:
                     st.markdown(
-                        f"- {nombre_i} — {c
-ant_i:.2f} {unidad_i} — "
+                        f"- {nombre_i} — {cant_i:.2f} {unidad_i} — "
                         f"(₡{costo_u:.2f} c/u → Subtotal: ₡{subtotal:,.2f})"
                     )
 
@@ -834,6 +833,7 @@ if st.session_state.pagina == "Balance":
             st.info("ℹ️ No hay ventas registradas en el rango seleccionado.")
     else:
         st.info("ℹ️ No hay ventas registradas.")
+
 
 
 
