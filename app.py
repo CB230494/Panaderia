@@ -20,6 +20,19 @@ from database.bd_ingresar import (
 from fpdf import FPDF
 import unicodedata
 
+# ====== Helpers imágenes recetas (NUEVO) ======
+def _safe_ext(filename: str) -> str:
+    ext = Path(filename).suffix.lower()
+    return ext if ext in (".jpg", ".jpeg", ".png") else ".png"
+
+def _img_path_for(nombre: str) -> Path | None:
+    base = Path("imagenes_recetas")
+    for ext in (".jpg", ".jpeg", ".png"):
+        p = base / f"{nombre.replace(' ', '_')}{ext}"
+        if p.exists():
+            return p
+    return None
+
 def _latin(s: str) -> str:
     """Convierte a latin-1 seguro para FPDF (evita errores con tildes/ñ)."""
     if not s:
@@ -28,86 +41,84 @@ def _latin(s: str) -> str:
 
 def generar_pdf_receta(nombre, instrucciones, desglose, costo_total, ruta_img):
     """
-    Crea un PDF elegante para la receta.
-    - nombre: str
-    - instrucciones: str
-    - desglose: lista de tuplas (nombre_insumo, cantidad, unidad, costo_u, subtotal)
-    - costo_total: float
+    PDF 1 página, estilo panadería (café & beige).
+    - desglose: [(nombre_insumo, cantidad, unidad, costo_unit, subtotal)]
     - ruta_img: Path o None
-    Devuelve bytes del PDF listo para descargar.
     """
-    pdf = FPDF(orientation="P", unit="mm", format="A4")
-    pdf.set_auto_page_break(auto=True, margin=15)
+    # Paleta
+    CAFE = (141, 90, 58)       # header
+    BEIGE = (245, 233, 215)    # encabezado tabla
+    BEIGE_SUAVE = (236, 211, 179)  # fila total
+    TEXTO = (35, 35, 35)
+    AZUL_LINK = (0, 102, 204)  # para títulos secundarios
+
+    pdf = FPDF("P", "mm", "A4")
+    pdf.set_auto_page_break(False)  # evita página extra
     pdf.add_page()
 
-    # ===== Encabezado con color =====
-    pdf.set_fill_color(0, 230, 184)  # turquesa suave (combina con tu app)
-    pdf.rect(0, 0, 210, 38, "F")
-    pdf.set_text_color(18, 18, 18)
+    # ===== Encabezado =====
+    pdf.set_fill_color(*CAFE)
+    pdf.rect(0, 0, 210, 40, "F")
+    pdf.set_text_color(255, 255, 255)
     pdf.set_font("Helvetica", "B", 22)
     pdf.set_xy(12, 10)
-    pdf.cell(0, 10, _latin("Panadería Moderna — Receta"), ln=1)
-    pdf.set_font("Helvetica", "", 14)
-    pdf.set_xy(12, 22)
-    pdf.cell(0, 10, _latin(f"🍰 {nombre}"), ln=1)
+    pdf.cell(0, 10, _latin("Panadería Moderna  Receta"), ln=1)
+    pdf.set_font("Helvetica", "", 15)
+    pdf.set_xy(12, 23)
+    pdf.cell(0, 10, _latin(nombre), ln=1)
 
     # ===== Imagen (si existe) =====
-    x_tabla = 12
-    y_inicio = 50
+    y_table = 48
     if ruta_img and Path(ruta_img).exists():
         try:
-            pdf.image(str(ruta_img), x=12, y=45, w=85)
-            x_tabla = 110
-            y_inicio = 45
+            # Altura fija para no desbordar; ancho se ajusta automáticamente
+            pdf.image(str(ruta_img), x=12, y=48, h=55)
+            y_table = 48 + 55 + 6  # tabla debajo de la imagen
         except Exception:
-            # Si la imagen falla, continuamos sin imagen
-            x_tabla = 12
-            y_inicio = 50
+            y_table = 48
 
     # ===== Tabla de ingredientes =====
-    pdf.set_xy(x_tabla, y_inicio)
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_fill_color(230, 245, 242)  # fondo celeste muy claro
+    pdf.set_xy(12, y_table)
+    pdf.set_text_color(*TEXTO)
     pdf.set_font("Helvetica", "B", 11)
+    pdf.set_fill_color(*BEIGE)
 
-    col_w = [60, 35, 35, 35]  # Ingrediente, Cantidad, ₡ Unit., Subtotal
+    # ancho útil = 210 - 24 = 186
+    cols = [86, 35, 33, 32]  # Ingrediente | Cantidad | ₡ Unit. | Subtotal
     headers = ["Ingrediente", "Cantidad", "₡ Unit.", "Subtotal"]
-    for i, h in enumerate(headers):
-        pdf.cell(col_w[i], 8, _latin(h), border=1, align="C", fill=True)
-    pdf.ln(8)
+    for w, h in zip(cols, headers):
+        pdf.cell(w, 9, _latin(h), border=1, align="C", fill=True)
+    pdf.ln(9)
 
     pdf.set_font("Helvetica", "", 10)
     for (nom_i, cant, uni, costo_u, subtotal) in desglose:
-        pdf.cell(col_w[0], 8, _latin(str(nom_i)), border=1)
-        pdf.cell(col_w[1], 8, _latin(f"{cant:.2f} {uni}"), border=1, align="C")
-        pdf.cell(col_w[2], 8, _latin(f"₡{costo_u:,.2f}"), border=1, align="R")
-        pdf.cell(col_w[3], 8, _latin(f"₡{subtotal:,.2f}"), border=1, align="R")
+        pdf.cell(cols[0], 8, _latin(str(nom_i)), border=1)                          # Ingrediente
+        pdf.cell(cols[1], 8, _latin(f"{cant:.2f} {uni}"), border=1, align="C")      # Cantidad
+        pdf.cell(cols[2], 8, _latin(f"{costo_u:,.2f}"), border=1, align="R")        # ₡ Unit.
+        pdf.cell(cols[3], 8, _latin(f"{subtotal:,.2f}"), border=1, align="R")       # Subtotal
         pdf.ln(8)
 
     pdf.set_font("Helvetica", "B", 11)
-    pdf.set_fill_color(255, 230, 230)  # rosado muy claro
-    pdf.cell(sum(col_w[:-1]), 8, _latin("Costo total"), border=1, align="R", fill=True)
-    pdf.cell(col_w[-1], 8, _latin(f"₡{costo_total:,.2f}"), border=1, align="R", fill=True)
+    pdf.set_fill_color(*BEIGE_SUAVE)
+    pdf.cell(sum(cols[:-1]), 9, _latin("Costo total"), border=1, align="R", fill=True)
+    pdf.cell(cols[-1], 9, _latin(f"{costo_total:,.2f}"), border=1, align="R", fill=True)
     pdf.ln(10)
 
-    # ===== Sección instrucciones =====
+    # ===== Instrucciones =====
     pdf.set_font("Helvetica", "B", 12)
-    pdf.set_text_color(0, 102, 204)  # azul agradable
-    pdf.cell(0, 8, _latin("Instrucciones"), ln=1)
-    pdf.set_text_color(0, 0, 0)
+    pdf.set_text_color(*CAFE)
+    pdf.cell(0, 7, _latin("Instrucciones"), ln=1)
+    pdf.set_text_color(*TEXTO)
     pdf.set_font("Helvetica", "", 11)
-    texto_inst = instrucciones or "Sin instrucciones."
-    pdf.multi_cell(0, 6.5, _latin(texto_inst))
-    pdf.ln(3)
+    pdf.multi_cell(0, 6.2, _latin(instrucciones or "Ninguna"))
 
     # ===== Pie =====
-    from datetime import datetime as _dt
-    pdf.set_y(-18)
+    pdf.set_y(-16)
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(120, 120, 120)
+    from datetime import datetime as _dt
     pdf.cell(0, 8, _latin(f"Generado el {_dt.now().strftime('%d/%m/%Y')} — Panadería Moderna"), align="C")
 
-    # Bytes del PDF
     return pdf.output(dest="S").encode("latin-1")
 
 
@@ -431,7 +442,8 @@ if st.session_state.pagina == "Recetas":
                 if imagen_receta:
                     carpeta_imagenes = Path("imagenes_recetas")
                     carpeta_imagenes.mkdir(exist_ok=True)
-                    nombre_archivo = f"{nombre_receta.replace(' ', '_')}.jpg"
+                    ext = _safe_ext(imagen_receta.name)
+                    nombre_archivo = f"{nombre_receta.replace(' ', '_')}{ext}"
                     with open(carpeta_imagenes / nombre_archivo, "wb") as f:
                         f.write(imagen_receta.read())
                 st.success(f"✅ Receta '{nombre_receta}' guardada correctamente.")
@@ -469,26 +481,27 @@ if st.session_state.pagina == "Recetas":
                         break
 
             with st.expander(f"🍰 {nombre} - Costo total: ₡{costo_total:,.2f}"):
-                ruta_img = Path("imagenes_recetas") / f"{nombre.replace(' ', '_')}.jpg"
-                if ruta_img.exists():
+                ruta_img = _img_path_for(nombre)
+                if ruta_img and ruta_img.exists():
                     st.image(str(ruta_img), caption=f"📷 {nombre}", width=300)
 
                 st.markdown(f"**📝 Instrucciones:** {instrucciones or 'Sin instrucciones.'}")
                 st.markdown("**🧾 Ingredientes:**")
                 for nombre_i, cant_i, unidad_i, costo_u, subtotal in desglose:
                     st.markdown(
-                        f"- {nombre_i} — {cant_i:.2f} {unidad_i} — "
+                        f"- {nombre_i} — {c
+ant_i:.2f} {unidad_i} — "
                         f"(₡{costo_u:.2f} c/u → Subtotal: ₡{subtotal:,.2f})"
                     )
 
-                # ===== DESCARGAR PDF (NUEVO) =====
+                # ===== DESCARGAR PDF =====
                 try:
                     pdf_bytes = generar_pdf_receta(
                         nombre=nombre,
                         instrucciones=instrucciones or "",
-                        desglose=desglose,                 # [(nombre_insumo, cant, unidad, costo_u, subtotal), ...]
+                        desglose=desglose,
                         costo_total=costo_total,
-                        ruta_img=ruta_img if ruta_img.exists() else None
+                        ruta_img=ruta_img if ruta_img and ruta_img.exists() else None
                     )
                     st.download_button(
                         label="📥 Descargar receta (PDF)",
@@ -504,8 +517,12 @@ if st.session_state.pagina == "Recetas":
                 with col1:
                     if st.button(f"🗑️ Eliminar receta", key=f"eliminar_{receta_id}"):
                         eliminar_receta(receta_id)
-                        if ruta_img.exists():
-                            ruta_img.unlink()
+                        # borrar cualquier imagen asociada (.jpg/.jpeg/.png)
+                        base = Path("imagenes_recetas")
+                        for ext in (".jpg", ".jpeg", ".png"):
+                            p = base / f"{nombre.replace(' ', '_')}{ext}"
+                            if p.exists():
+                                p.unlink()
                         st.success(f"🗑️ Receta '{nombre}' eliminada.")
                         st.rerun()
                 with col2:
@@ -535,16 +552,29 @@ if st.session_state.pagina == "Recetas":
 
                     guardar = st.form_submit_button("💾 Guardar cambios")
                     if guardar:
+                        # Actualizamos receta: para simplicidad igual que antes
                         eliminar_receta(receta_id)
                         agregar_receta(nuevo_nombre, nuevas_instrucciones, nuevos_insumos)
+
                         carpeta = Path("imagenes_recetas")
-                        viejo = carpeta / f"{nombre.replace(' ', '_')}.jpg"
-                        nuevo = carpeta / f"{nuevo_nombre.replace(' ', '_')}.jpg"
+                        carpeta.mkdir(exist_ok=True)
                         if nueva_imagen:
+                            # Guardar nueva y eliminar viejas
+                            for ext in (".jpg", ".jpeg", ".png"):
+                                viejo = carpeta / f"{nombre.replace(' ', '_')}{ext}"
+                                if viejo.exists():
+                                    viejo.unlink()
+                            ext = _safe_ext(nueva_imagen.name)
+                            nuevo = carpeta / f"{nuevo_nombre.replace(' ', '_')}{ext}"
                             with open(nuevo, "wb") as f:
                                 f.write(nueva_imagen.read())
-                        elif viejo.exists() and nombre != nuevo_nombre:
-                            viejo.rename(nuevo)
+                        else:
+                            # Renombrar la existente si cambia el nombre
+                            viejo_existente = _img_path_for(nombre)
+                            if viejo_existente and nombre != nuevo_nombre:
+                                nuevo = viejo_existente.with_name(f"{nuevo_nombre.replace(' ', '_')}{viejo_existente.suffix}")
+                                viejo_existente.rename(nuevo)
+
                         st.success("✅ Receta actualizada.")
                         st.session_state[f"editando_{receta_id}"] = False
                         st.rerun()
@@ -804,8 +834,6 @@ if st.session_state.pagina == "Balance":
             st.info("ℹ️ No hay ventas registradas en el rango seleccionado.")
     else:
         st.info("ℹ️ No hay ventas registradas.")
-
-
 
 
 
