@@ -20,6 +20,7 @@ from database.bd_ingresar import (
 # === IMPORTS PARA PDF (NUEVO) ===
 from fpdf import FPDF
 import unicodedata
+from PIL import Image  # para asegurar compatibilidad de imagen (alpha/CMYK, etc.)
 
 # ====== Helpers imágenes recetas (NUEVO) ======
 def _safe_ext(filename: str) -> str:
@@ -40,6 +41,23 @@ def _latin(s: str) -> str:
         return ""
     return unicodedata.normalize("NFKD", s).encode("latin-1", "ignore").decode("latin-1")
 
+def _prepare_img_for_pdf(src: Path) -> Path:
+    """
+    Convierte PNG con alpha o imágenes CMYK a JPG RGB temporal para FPDF.
+    Devuelve la ruta del archivo listo para insertar.
+    """
+    tmp_dir = src.parent
+    tmp_path = tmp_dir / f"__tmp_pdf_{src.stem}.jpg"
+    try:
+        with Image.open(src) as im:
+            if im.mode not in ("RGB", "L"):
+                im = im.convert("RGB")
+            im.save(tmp_path, format="JPEG", quality=90)
+        return tmp_path
+    except Exception:
+        # Si algo falla, regresamos la ruta original (FPDF intentará insertarla)
+        return src
+
 def generar_pdf_receta(nombre: str, instrucciones: str, desglose: list, costo_total: float, ruta_img: Optional[Path]) -> bytes:
     """
     PDF 1 página, estilo panadería (café & beige).
@@ -47,8 +65,8 @@ def generar_pdf_receta(nombre: str, instrucciones: str, desglose: list, costo_to
     - ruta_img: Path o None
     """
     # Paleta
-    CAFE = (141, 90, 58)         # header café
-    BEIGE = (245, 233, 215)      # encabezado tabla
+    CAFE = (141, 90, 58)           # header café
+    BEIGE = (245, 233, 215)        # encabezado tabla
     BEIGE_SUAVE = (236, 211, 179)  # fila total
     TEXTO = (35, 35, 35)
 
@@ -56,50 +74,68 @@ def generar_pdf_receta(nombre: str, instrucciones: str, desglose: list, costo_to
     pdf.set_auto_page_break(False)  # evita página extra automática
     pdf.add_page()
 
+    # Márgenes coherentes para alinear todo (incluida la tabla)
+    LEFT = 12
+    pdf.set_left_margin(LEFT)
+    pdf.set_right_margin(12)
+
     # ===== Encabezado =====
     pdf.set_fill_color(*CAFE)
     pdf.rect(0, 0, 210, 40, "F")
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Helvetica", "B", 22)
-    pdf.set_xy(12, 10)
+    pdf.set_xy(LEFT, 10)
     pdf.cell(0, 10, _latin("Panadería Moderna  Receta"), ln=1)
     pdf.set_font("Helvetica", "", 15)
-    pdf.set_xy(12, 23)
+    pdf.set_xy(LEFT, 23)
     pdf.cell(0, 10, _latin(nombre), ln=1)
 
     # ===== Imagen (si existe) =====
     y_table = 48
+    tmp_to_delete = None
     if ruta_img and Path(ruta_img).exists():
         try:
-            # Altura controlada para no desbordar; ancho se ajusta automáticamente
-            pdf.image(str(ruta_img), x=12, y=48, h=55)
+            # Aseguramos compatibilidad y evitamos alpha/CMYK
+            prepared = _prepare_img_for_pdf(ruta_img)
+            if prepared != ruta_img:
+                tmp_to_delete = prepared
+            # Altura controlada; ancho se adapta automáticamente
+            pdf.image(str(prepared), x=LEFT, y=48, h=55)
             y_table = 48 + 55 + 6  # tabla debajo de la imagen
         except Exception:
             y_table = 48
 
     # ===== Tabla de ingredientes =====
-    pdf.set_xy(12, y_table)
+    pdf.set_xy(LEFT, y_table)
     pdf.set_text_color(*TEXTO)
     pdf.set_font("Helvetica", "B", 11)
     pdf.set_fill_color(*BEIGE)
+    pdf.set_draw_color(90, 70, 55)  # líneas ligeramente café
 
-    # ancho útil = 210 - 24 = 186
+    # ancho útil = 210 - 2*LEFT = 186
     cols = [86, 35, 33, 32]  # Ingrediente | Cantidad | Unit. | Subtotal
     headers = ["Ingrediente", "Cantidad", "Unit.", "Subtotal"]
+
+    # Encabezado
+    pdf.set_x(LEFT)
     for w, hdr in zip(cols, headers):
         pdf.cell(w, 9, _latin(hdr), border=1, align="C", fill=True)
     pdf.ln(9)
 
+    # Filas
     pdf.set_font("Helvetica", "", 10)
     for (nom_i, cant, uni, costo_u, subtotal) in desglose:
-        pdf.cell(cols[0], 8, _latin(str(nom_i)), border=1)                         # Ingrediente
-        pdf.cell(cols[1], 8, _latin(f"{cant:.2f} {uni}"), border=1, align="C")     # Cantidad
-        pdf.cell(cols[2], 8, _latin(f"{costo_u:,.2f}"), border=1, align="R")       # Unit.
-        pdf.cell(cols[3], 8, _latin(f"{subtotal:,.2f}"), border=1, align="R")      # Subtotal
+        pdf.set_x(LEFT)  # <-- clave para que no se corra la tabla
+        pdf.cell(cols[0], 8, _latin(str(nom_i)), border=1)                        # Ingrediente
+        pdf.cell(cols[1], 8, _latin(f"{cant:.2f} {uni}"), border=1, align="C")    # Cantidad
+        pdf.cell(cols[2], 8, _latin(f"{costo_u:,.2f}"), border=1, align="R")      # Unit.
+        pdf.cell(cols[3], 8, _latin(f"{subtotal:,.2f}"), border=1, align="R")     # Subtotal
         pdf.ln(8)
 
+    # Total
     pdf.set_font("Helvetica", "B", 11)
     pdf.set_fill_color(*BEIGE_SUAVE)
+    pdf.set_x(LEFT)
     pdf.cell(sum(cols[:-1]), 9, _latin("Costo total"), border=1, align="R", fill=True)
     pdf.cell(cols[-1], 9, _latin(f"{costo_total:,.2f}"), border=1, align="R", fill=True)
     pdf.ln(10)
@@ -107,9 +143,11 @@ def generar_pdf_receta(nombre: str, instrucciones: str, desglose: list, costo_to
     # ===== Instrucciones =====
     pdf.set_font("Helvetica", "B", 12)
     pdf.set_text_color(*CAFE)
+    pdf.set_x(LEFT)
     pdf.cell(0, 7, _latin("Instrucciones"), ln=1)
     pdf.set_text_color(*TEXTO)
     pdf.set_font("Helvetica", "", 11)
+    pdf.set_x(LEFT)
     pdf.multi_cell(0, 6.2, _latin(instrucciones or "Ninguna"))
 
     # ===== Pie =====
@@ -119,7 +157,16 @@ def generar_pdf_receta(nombre: str, instrucciones: str, desglose: list, costo_to
     from datetime import datetime as _dt
     pdf.cell(0, 8, _latin(f"Generado el {_dt.now().strftime('%d/%m/%Y')} — Panadería Moderna"), align="C")
 
-    return pdf.output(dest="S").encode("latin-1")
+    pdf_bytes = pdf.output(dest="S").encode("latin-1")
+
+    # Limpieza del temporal si se creó
+    if tmp_to_delete and Path(tmp_to_delete).exists():
+        try:
+            Path(tmp_to_delete).unlink()
+        except Exception:
+            pass
+
+    return pdf_bytes
 
 
 # === CONFIGURACIÓN GENERAL ===
@@ -551,14 +598,12 @@ if st.session_state.pagina == "Recetas":
 
                     guardar = st.form_submit_button("💾 Guardar cambios")
                     if guardar:
-                        # Actualizamos receta: para simplicidad igual que antes
                         eliminar_receta(receta_id)
                         agregar_receta(nuevo_nombre, nuevas_instrucciones, nuevos_insumos)
 
                         carpeta = Path("imagenes_recetas")
                         carpeta.mkdir(exist_ok=True)
                         if nueva_imagen:
-                            # Guardar nueva y eliminar viejas
                             for ext in (".jpg", ".jpeg", ".png"):
                                 viejo = carpeta / f"{nombre.replace(' ', '_')}{ext}"
                                 if viejo.exists():
@@ -568,7 +613,6 @@ if st.session_state.pagina == "Recetas":
                             with open(nuevo, "wb") as f:
                                 f.write(nueva_imagen.read())
                         else:
-                            # Renombrar la existente si cambia el nombre
                             viejo_existente = _img_path_for(nombre)
                             if viejo_existente and nombre != nuevo_nombre:
                                 nuevo = viejo_existente.with_name(f"{nuevo_nombre.replace(' ', '_')}{viejo_existente.suffix}")
@@ -619,7 +663,7 @@ if st.session_state.pagina == "Entradas/Salidas":
     registrar = st.button("💾 Registrar movimiento")
 
     if registrar:
-        if tipo_movimiento == "Salida" and cantidad > cantidad_actual:
+        if tipo_movimiento == "Salida" y cantidad > cantidad_actual:
             st.error("❌ No hay suficiente stock para realizar la salida.")
         else:
             fecha_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -833,6 +877,7 @@ if st.session_state.pagina == "Balance":
             st.info("ℹ️ No hay ventas registradas en el rango seleccionado.")
     else:
         st.info("ℹ️ No hay ventas registradas.")
+
 
 
 
