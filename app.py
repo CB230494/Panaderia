@@ -6,9 +6,6 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
-# Elimina esta línea si ya incluiste generar_pdf_receta directamente en app.py
-# from exportar_pdf import generar_pdf_receta
-
 from database.bd_ingresar import (
     crear_tabla_productos, agregar_producto, obtener_productos, actualizar_producto, eliminar_producto,
     crear_tabla_insumos, agregar_insumo, obtener_insumos, actualizar_insumo, eliminar_insumo,
@@ -17,12 +14,12 @@ from database.bd_ingresar import (
     crear_tabla_ventas, registrar_venta_en_db, obtener_ventas, actualizar_venta, eliminar_venta
 )
 
-# === IMPORTS PARA PDF (NUEVO) ===
+# === PDF ===
 from fpdf import FPDF
 import unicodedata
-from PIL import Image  # para asegurar compatibilidad de imagen (alpha/CMYK, etc.)
+from PIL import Image
 
-# ====== Helpers imágenes recetas (NUEVO) ======
+# ------- Helpers de imágenes y texto -------
 def _safe_ext(filename: str) -> str:
     ext = Path(filename).suffix.lower()
     return ext if ext in (".jpg", ".jpeg", ".png") else ".png"
@@ -36,7 +33,6 @@ def _img_path_for(nombre: str) -> Optional[Path]:
     return None
 
 def _latin(s: str) -> str:
-    """Convierte a latin-1 seguro para FPDF (evita errores con tildes/ñ y símbolos)."""
     if not s:
         return ""
     return unicodedata.normalize("NFKD", s).encode("latin-1", "ignore").decode("latin-1")
@@ -44,7 +40,6 @@ def _latin(s: str) -> str:
 def _prepare_img_for_pdf(src: Path) -> Path:
     """
     Convierte PNG con alpha o imágenes CMYK a JPG RGB temporal para FPDF.
-    Devuelve la ruta del archivo listo para insertar.
     """
     tmp_dir = src.parent
     tmp_path = tmp_dir / f"__tmp_pdf_{src.stem}.jpg"
@@ -55,31 +50,28 @@ def _prepare_img_for_pdf(src: Path) -> Path:
             im.save(tmp_path, format="JPEG", quality=90)
         return tmp_path
     except Exception:
-        # Si algo falla, regresamos la ruta original (FPDF intentará insertarla)
         return src
 
 def generar_pdf_receta(nombre: str, instrucciones: str, desglose: list, costo_total: float, ruta_img: Optional[Path]) -> bytes:
     """
-    PDF 1 página, estilo panadería (café & beige).
+    Genera PDF en una página:
     - desglose: [(nombre_insumo, cantidad, unidad, costo_unit, subtotal)]
-    - ruta_img: Path o None
     """
     # Paleta
-    CAFE = (141, 90, 58)           # header café
-    BEIGE = (245, 233, 215)        # encabezado tabla
-    BEIGE_SUAVE = (236, 211, 179)  # fila total
+    CAFE = (141, 90, 58)
+    BEIGE = (245, 233, 215)
+    BEIGE_SUAVE = (236, 211, 179)
     TEXTO = (35, 35, 35)
 
     pdf = FPDF("P", "mm", "A4")
-    pdf.set_auto_page_break(False)  # evita página extra automática
+    pdf.set_auto_page_break(False)
     pdf.add_page()
 
-    # Márgenes coherentes para alinear todo (incluida la tabla)
     LEFT = 12
     pdf.set_left_margin(LEFT)
     pdf.set_right_margin(12)
 
-    # ===== Encabezado =====
+    # Header
     pdf.set_fill_color(*CAFE)
     pdf.rect(0, 0, 210, 40, "F")
     pdf.set_text_color(255, 255, 255)
@@ -90,49 +82,43 @@ def generar_pdf_receta(nombre: str, instrucciones: str, desglose: list, costo_to
     pdf.set_xy(LEFT, 23)
     pdf.cell(0, 10, _latin(nombre), ln=1)
 
-    # ===== Imagen (si existe) =====
+    # Imagen
     y_table = 48
     tmp_to_delete = None
     if ruta_img and Path(ruta_img).exists():
         try:
-            # Aseguramos compatibilidad y evitamos alpha/CMYK
             prepared = _prepare_img_for_pdf(ruta_img)
             if prepared != ruta_img:
                 tmp_to_delete = prepared
-            # Altura controlada; ancho se adapta automáticamente
             pdf.image(str(prepared), x=LEFT, y=48, h=55)
-            y_table = 48 + 55 + 6  # tabla debajo de la imagen
+            y_table = 48 + 55 + 6
         except Exception:
             y_table = 48
 
-    # ===== Tabla de ingredientes =====
+    # Tabla
     pdf.set_xy(LEFT, y_table)
     pdf.set_text_color(*TEXTO)
     pdf.set_font("Helvetica", "B", 11)
     pdf.set_fill_color(*BEIGE)
-    pdf.set_draw_color(90, 70, 55)  # líneas ligeramente café
+    pdf.set_draw_color(90, 70, 55)
 
-    # ancho útil = 210 - 2*LEFT = 186
-    cols = [86, 35, 33, 32]  # Ingrediente | Cantidad | Unit. | Subtotal
+    cols = [86, 35, 33, 32]
     headers = ["Ingrediente", "Cantidad", "Unit.", "Subtotal"]
 
-    # Encabezado
     pdf.set_x(LEFT)
     for w, hdr in zip(cols, headers):
         pdf.cell(w, 9, _latin(hdr), border=1, align="C", fill=True)
     pdf.ln(9)
 
-    # Filas
     pdf.set_font("Helvetica", "", 10)
     for (nom_i, cant, uni, costo_u, subtotal) in desglose:
-        pdf.set_x(LEFT)  # <-- clave para que no se corra la tabla
-        pdf.cell(cols[0], 8, _latin(str(nom_i)), border=1)                        # Ingrediente
-        pdf.cell(cols[1], 8, _latin(f"{cant:.2f} {uni}"), border=1, align="C")    # Cantidad
-        pdf.cell(cols[2], 8, _latin(f"{costo_u:,.2f}"), border=1, align="R")      # Unit.
-        pdf.cell(cols[3], 8, _latin(f"{subtotal:,.2f}"), border=1, align="R")     # Subtotal
+        pdf.set_x(LEFT)
+        pdf.cell(cols[0], 8, _latin(str(nom_i)), border=1)
+        pdf.cell(cols[1], 8, _latin(f"{cant:.2f} {uni}"), border=1, align="C")
+        pdf.cell(cols[2], 8, _latin(f"{costo_u:,.2f}"), border=1, align="R")
+        pdf.cell(cols[3], 8, _latin(f"{subtotal:,.2f}"), border=1, align="R")
         pdf.ln(8)
 
-    # Total
     pdf.set_font("Helvetica", "B", 11)
     pdf.set_fill_color(*BEIGE_SUAVE)
     pdf.set_x(LEFT)
@@ -140,7 +126,7 @@ def generar_pdf_receta(nombre: str, instrucciones: str, desglose: list, costo_to
     pdf.cell(cols[-1], 9, _latin(f"{costo_total:,.2f}"), border=1, align="R", fill=True)
     pdf.ln(10)
 
-    # ===== Instrucciones =====
+    # Instrucciones
     pdf.set_font("Helvetica", "B", 12)
     pdf.set_text_color(*CAFE)
     pdf.set_x(LEFT)
@@ -150,7 +136,7 @@ def generar_pdf_receta(nombre: str, instrucciones: str, desglose: list, costo_to
     pdf.set_x(LEFT)
     pdf.multi_cell(0, 6.2, _latin(instrucciones or "Ninguna"))
 
-    # ===== Pie =====
+    # Pie
     pdf.set_y(-16)
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(120, 120, 120)
@@ -159,7 +145,6 @@ def generar_pdf_receta(nombre: str, instrucciones: str, desglose: list, costo_to
 
     pdf_bytes = pdf.output(dest="S").encode("latin-1")
 
-    # Limpieza del temporal si se creó
     if tmp_to_delete and Path(tmp_to_delete).exists():
         try:
             Path(tmp_to_delete).unlink()
@@ -228,7 +213,7 @@ with st.sidebar:
 crear_tabla_productos()
 crear_tabla_insumos()
 crear_tabla_recetas()
-crear_tabla_entradas_salidas() 
+crear_tabla_entradas_salidas()
 crear_tabla_ventas()
 
 # === INICIO ===
@@ -369,7 +354,7 @@ if st.session_state.pagina == "Insumos":
                 costo_unitario = costo_total / cantidad
                 agregar_insumo(nombre_i, unidad_i, costo_unitario, cantidad)
 
-                # Calcular precio por unidad base
+                # Precio por unidad base
                 if unidad_i in ["kg", "l"]:
                     costo_base = costo_unitario / 1000
                     unidad_base = "gramo" if unidad_i == "kg" else "mililitro"
@@ -391,21 +376,16 @@ if st.session_state.pagina == "Insumos":
 
     if insumos:
         df_i = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Unitario", "Cantidad"])
-
         unidad_legible = {v: k for k, v in unidades_dict.items()}
         df_i["Unidad Mostrada"] = df_i["Unidad"].map(unidad_legible)
 
         def calcular_precio_base(row):
             if row["Unidad"] in ["kg", "l"]:
                 return row["Costo Unitario"] / 1000
-            else:
-                return row["Costo Unitario"]
+            return row["Costo Unitario"]
 
-        df_i["₡ por unidad base"] = df_i.apply(calcular_precio_base, axis=1)
-        df_i["₡ por unidad base"] = df_i["₡ por unidad base"].map(lambda x: f"₡{x:.2f}")
-
-        df_i["Costo Total (₡)"] = df_i["Costo Unitario"] * df_i["Cantidad"]
-        df_i["Costo Total (₡)"] = df_i["Costo Total (₡)"].map(lambda x: f"₡{x:,.2f}")
+        df_i["₡ por unidad base"] = df_i.apply(calcular_precio_base, axis=1).map(lambda x: f"₡{x:.2f}")
+        df_i["Costo Total (₡)"] = (df_i["Costo Unitario"] * df_i["Cantidad"]).map(lambda x: f"₡{x:,.2f}")
         df_i["Costo Unitario"] = df_i["Costo Unitario"].map(lambda x: f"₡{x:,.2f}")
 
         st.dataframe(df_i[["ID", "Nombre", "Unidad Mostrada", "Costo Unitario", "Cantidad", "Costo Total (₡)", "₡ por unidad base"]], use_container_width=True)
@@ -540,7 +520,7 @@ if st.session_state.pagina == "Recetas":
                         f"(₡{costo_u:.2f} c/u → Subtotal: ₡{subtotal:,.2f})"
                     )
 
-                # ===== DESCARGAR PDF =====
+                # PDF
                 try:
                     pdf_bytes = generar_pdf_receta(
                         nombre=nombre,
@@ -563,7 +543,6 @@ if st.session_state.pagina == "Recetas":
                 with col1:
                     if st.button(f"🗑️ Eliminar receta", key=f"eliminar_{receta_id}"):
                         eliminar_receta(receta_id)
-                        # borrar cualquier imagen asociada (.jpg/.jpeg/.png)
                         base = Path("imagenes_recetas")
                         for ext in (".jpg", ".jpeg", ".png"):
                             p = base / f"{nombre.replace(' ', '_')}{ext}"
@@ -644,7 +623,6 @@ if st.session_state.pagina == "Entradas/Salidas":
         "unidad": "unidades"
     }
 
-    # Mostrar nombres con unidad legible en el selectbox
     nombres_insumos = [f"{i[1]} ({unidad_legible.get(i[2], i[2])})" for i in insumos]
     insumo_elegido = st.selectbox("🔽 Selecciona el insumo", nombres_insumos)
 
@@ -663,7 +641,7 @@ if st.session_state.pagina == "Entradas/Salidas":
     registrar = st.button("💾 Registrar movimiento")
 
     if registrar:
-        if tipo_movimiento == "Salida" y cantidad > cantidad_actual:
+        if tipo_movimiento == "Salida" and cantidad > cantidad_actual:
             st.error("❌ No hay suficiente stock para realizar la salida.")
         else:
             fecha_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -671,7 +649,7 @@ if st.session_state.pagina == "Entradas/Salidas":
             st.success(f"✅ {tipo_movimiento} registrada correctamente.")
             st.rerun()
 
-    # === HISTORIAL DE MOVIMIENTOS ===
+    # Historial
     historial = obtener_historial_movimientos()
     if historial:
         st.markdown("### 📜 Historial de Movimientos")
@@ -686,12 +664,12 @@ if st.session_state.pagina == "Entradas/Salidas":
 
         st.dataframe(df_hist.style.applymap(colorear_tipo, subset=["Tipo"]), use_container_width=True)
 
-    # === INSUMOS CON STOCK BAJO ===
+    # Stock bajo
     st.markdown("### 🚨 Insumos con stock bajo")
     bajo_stock = [i for i in insumos if i[4] < 3]
     if bajo_stock:
         df_bajo = pd.DataFrame(bajo_stock, columns=["ID", "Nombre", "Unidad", "₡ x unidad", "Cantidad disponible"])
-        df_bajo["Unidad"] = df_bajo["Unidad"].map(unidad_legible)  # ✅ Nombre legible
+        df_bajo["Unidad"] = df_bajo["Unidad"].map(unidad_legible)
         df_bajo["₡ x unidad"] = df_bajo["₡ x unidad"].apply(lambda x: f"₡{x:,.2f}")
         df_bajo["Cantidad disponible"] = df_bajo["Cantidad disponible"].apply(lambda x: f"{x:.2f}")
         df_bajo = df_bajo.drop(columns=["ID"])
@@ -736,13 +714,11 @@ if st.session_state.pagina == "Ventas":
 
                 registrar_venta_en_db(nombre, unidad, cantidad_vendida, ingreso_total, costo_total, ganancia_total, fecha_actual)
 
-                # Descontar del stock
                 actualizar_producto(id_producto, nombre, unidad, precio_venta, costo_unitario, stock_disponible - cantidad_vendida)
 
                 st.success("✅ Venta registrada correctamente.")
                 st.rerun()
 
-    # Mostrar historial de ventas
     ventas = obtener_ventas()
     if ventas:
         st.markdown("### 📋 Historial de ventas")
@@ -760,13 +736,13 @@ if st.session_state.pagina == "Ventas":
         st.markdown(f"**💵 Total ingresos:** ₡{total_ingresos:,.2f}")
         st.markdown(f"**📈 Total ganancias:** ₡{total_ganancias:,.2f}")
 
-        # Producto más vendido
+        # Producto estrella
         df_crudo = pd.DataFrame(ventas, columns=["ID", "Producto", "Unidad", "Cantidad", "Ingreso", "Costo", "Ganancia", "Fecha"])
         producto_estrella = df_crudo.groupby("Producto")["Cantidad"].sum().idxmax()
         cantidad_estrella = df_crudo.groupby("Producto")["Cantidad"].sum().max()
         st.success(f"🌟 Producto estrella: **{producto_estrella}** con **{cantidad_estrella:.2f}** unidades vendidas")
 
-        # Editar/eliminar ventas
+        # Editar/eliminar
         st.markdown("### ✏️ Editar o eliminar una venta")
         ids_ventas = [f"{v[0]} - {v[1]} ({v[3]:.2f})" for v in ventas]
         seleccion_id = st.selectbox("Selecciona una venta", ids_ventas)
@@ -799,7 +775,6 @@ if st.session_state.pagina == "Ventas":
 if st.session_state.pagina == "Balance":
     st.subheader("📊 Balance General del Negocio")
 
-    # ==== Selección de rango de fechas ====
     st.markdown("### 📅 Selecciona un rango de fechas")
     col1, col2 = st.columns(2)
     with col1:
@@ -807,7 +782,6 @@ if st.session_state.pagina == "Balance":
     with col2:
         fecha_fin = st.date_input("Hasta", value=datetime.today())
 
-    # ==== Inventario de Insumos ====
     insumos = obtener_insumos()
     if insumos:
         df_insumos = pd.DataFrame(insumos, columns=["ID", "Nombre", "Unidad", "Costo Unitario", "Cantidad"])
@@ -826,7 +800,7 @@ if st.session_state.pagina == "Balance":
         df_insumos["Costo Unitario"] = df_insumos["Costo Unitario"].apply(lambda x: f"₡{x:,.2f}")
         df_insumos["Total (₡)"] = df_insumos["Total (₡)"].apply(lambda x: f"₡{x:,.2f}")
 
-        total_inventario_num = sum([i[3] * i[4] for i in insumos])  # sin formato
+        total_inventario_num = sum([i[3] * i[4] for i in insumos])
 
         st.markdown("### 📦 Valor del inventario de insumos")
         st.dataframe(df_insumos[["Nombre", "Unidad", "Cantidad", "Costo Unitario", "Total (₡)"]], use_container_width=True)
@@ -836,9 +810,7 @@ if st.session_state.pagina == "Balance":
 
     st.divider()
 
-    # ==== Ventas filtradas por fecha ====
     st.markdown("### 💰 Ventas registradas en el período")
-
     ventas = obtener_ventas()
     if ventas:
         df_ventas = pd.DataFrame(ventas, columns=["ID", "Producto", "Unidad", "Cantidad", "Ingreso (₡)", "Costo (₡)", "Ganancia (₡)", "Fecha"])
@@ -877,6 +849,7 @@ if st.session_state.pagina == "Balance":
             st.info("ℹ️ No hay ventas registradas en el rango seleccionado.")
     else:
         st.info("ℹ️ No hay ventas registradas.")
+
 
 
 
