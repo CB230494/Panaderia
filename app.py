@@ -16,6 +16,100 @@ from database.bd_ingresar import (
     crear_tabla_ventas, registrar_venta_en_db, obtener_ventas, actualizar_venta, eliminar_venta
 )
 
+# === IMPORTS PARA PDF (NUEVO) ===
+from fpdf import FPDF
+import unicodedata
+
+def _latin(s: str) -> str:
+    """Convierte a latin-1 seguro para FPDF (evita errores con tildes/ñ)."""
+    if not s:
+        return ""
+    return unicodedata.normalize("NFKD", s).encode("latin-1", "ignore").decode("latin-1")
+
+def generar_pdf_receta(nombre, instrucciones, desglose, costo_total, ruta_img):
+    """
+    Crea un PDF elegante para la receta.
+    - nombre: str
+    - instrucciones: str
+    - desglose: lista de tuplas (nombre_insumo, cantidad, unidad, costo_u, subtotal)
+    - costo_total: float
+    - ruta_img: Path o None
+    Devuelve bytes del PDF listo para descargar.
+    """
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    # ===== Encabezado con color =====
+    pdf.set_fill_color(0, 230, 184)  # turquesa suave (combina con tu app)
+    pdf.rect(0, 0, 210, 38, "F")
+    pdf.set_text_color(18, 18, 18)
+    pdf.set_font("Helvetica", "B", 22)
+    pdf.set_xy(12, 10)
+    pdf.cell(0, 10, _latin("Panadería Moderna — Receta"), ln=1)
+    pdf.set_font("Helvetica", "", 14)
+    pdf.set_xy(12, 22)
+    pdf.cell(0, 10, _latin(f"🍰 {nombre}"), ln=1)
+
+    # ===== Imagen (si existe) =====
+    x_tabla = 12
+    y_inicio = 50
+    if ruta_img and Path(ruta_img).exists():
+        try:
+            pdf.image(str(ruta_img), x=12, y=45, w=85)
+            x_tabla = 110
+            y_inicio = 45
+        except Exception:
+            # Si la imagen falla, continuamos sin imagen
+            x_tabla = 12
+            y_inicio = 50
+
+    # ===== Tabla de ingredientes =====
+    pdf.set_xy(x_tabla, y_inicio)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_fill_color(230, 245, 242)  # fondo celeste muy claro
+    pdf.set_font("Helvetica", "B", 11)
+
+    col_w = [60, 35, 35, 35]  # Ingrediente, Cantidad, ₡ Unit., Subtotal
+    headers = ["Ingrediente", "Cantidad", "₡ Unit.", "Subtotal"]
+    for i, h in enumerate(headers):
+        pdf.cell(col_w[i], 8, _latin(h), border=1, align="C", fill=True)
+    pdf.ln(8)
+
+    pdf.set_font("Helvetica", "", 10)
+    for (nom_i, cant, uni, costo_u, subtotal) in desglose:
+        pdf.cell(col_w[0], 8, _latin(str(nom_i)), border=1)
+        pdf.cell(col_w[1], 8, _latin(f"{cant:.2f} {uni}"), border=1, align="C")
+        pdf.cell(col_w[2], 8, _latin(f"₡{costo_u:,.2f}"), border=1, align="R")
+        pdf.cell(col_w[3], 8, _latin(f"₡{subtotal:,.2f}"), border=1, align="R")
+        pdf.ln(8)
+
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.set_fill_color(255, 230, 230)  # rosado muy claro
+    pdf.cell(sum(col_w[:-1]), 8, _latin("Costo total"), border=1, align="R", fill=True)
+    pdf.cell(col_w[-1], 8, _latin(f"₡{costo_total:,.2f}"), border=1, align="R", fill=True)
+    pdf.ln(10)
+
+    # ===== Sección instrucciones =====
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.set_text_color(0, 102, 204)  # azul agradable
+    pdf.cell(0, 8, _latin("Instrucciones"), ln=1)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Helvetica", "", 11)
+    texto_inst = instrucciones or "Sin instrucciones."
+    pdf.multi_cell(0, 6.5, _latin(texto_inst))
+    pdf.ln(3)
+
+    # ===== Pie =====
+    from datetime import datetime as _dt
+    pdf.set_y(-18)
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(120, 120, 120)
+    pdf.cell(0, 8, _latin(f"Generado el {_dt.now().strftime('%d/%m/%Y')} — Panadería Moderna"), align="C")
+
+    # Bytes del PDF
+    return pdf.output(dest="S").encode("latin-1")
+
 
 # === CONFIGURACIÓN GENERAL ===
 st.set_page_config(page_title="Panadería Moderna", layout="wide")
@@ -78,6 +172,7 @@ crear_tabla_insumos()
 crear_tabla_recetas()
 crear_tabla_entradas_salidas() 
 crear_tabla_ventas()
+
 # === INICIO ===
 if st.session_state.pagina == "Inicio":
     st.markdown("## 📊 Sistema de Gestión - Panadería ")
@@ -186,6 +281,7 @@ if st.session_state.pagina == "Productos":
                 st.rerun()
     else:
         st.info("ℹ️ No hay productos registrados todavía.")
+
 # =============================
 # 🚚 PESTAÑA DE INSUMOS
 # =============================
@@ -297,6 +393,7 @@ if st.session_state.pagina == "Insumos":
                 st.rerun()
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
+
 # =============================
 # 📋 PESTAÑA DE RECETAS
 # =============================
@@ -384,6 +481,25 @@ if st.session_state.pagina == "Recetas":
                         f"(₡{costo_u:.2f} c/u → Subtotal: ₡{subtotal:,.2f})"
                     )
 
+                # ===== DESCARGAR PDF (NUEVO) =====
+                try:
+                    pdf_bytes = generar_pdf_receta(
+                        nombre=nombre,
+                        instrucciones=instrucciones or "",
+                        desglose=desglose,                 # [(nombre_insumo, cant, unidad, costo_u, subtotal), ...]
+                        costo_total=costo_total,
+                        ruta_img=ruta_img if ruta_img.exists() else None
+                    )
+                    st.download_button(
+                        label="📥 Descargar receta (PDF)",
+                        data=pdf_bytes,
+                        file_name=f"Receta_{nombre.replace(' ', '_')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                except Exception as e:
+                    st.error(f"⚠️ No se pudo generar el PDF: {e}")
+
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button(f"🗑️ Eliminar receta", key=f"eliminar_{receta_id}"):
@@ -434,6 +550,7 @@ if st.session_state.pagina == "Recetas":
                         st.rerun()
     else:
         st.info("ℹ️ No hay recetas registradas todavía.")
+
 # =============================
 # 📤 PESTAÑA DE ENTRADAS Y SALIDAS
 # =============================
@@ -509,6 +626,7 @@ if st.session_state.pagina == "Entradas/Salidas":
         st.dataframe(df_bajo.style.highlight_max(axis=0, color="salmon"), use_container_width=True)
     else:
         st.success("✅ Todos los insumos tienen suficiente stock.")
+
 # =============================
 # 💰 PESTAÑA DE VENTAS
 # =============================
@@ -602,7 +720,6 @@ if st.session_state.pagina == "Ventas":
     else:
         st.info("ℹ️ Aún no hay ventas registradas.")
 
-
 # =============================
 # 📊 PESTAÑA DE BALANCE
 # =============================
@@ -687,6 +804,8 @@ if st.session_state.pagina == "Balance":
             st.info("ℹ️ No hay ventas registradas en el rango seleccionado.")
     else:
         st.info("ℹ️ No hay ventas registradas.")
+
+
 
 
 
