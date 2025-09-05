@@ -1,5 +1,8 @@
-streamlit
-streamlit-option-menu
-fpdf
-supabase
-Pillow>=10
+streamlit>=1.36
+streamlit-option-menu>=0.3
+pandas>=2.0
+gspread==5.12.0
+google-auth==2.35.0
+fpdf==1.7.2
+Pillow>=10.0
+
