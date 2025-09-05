@@ -1,5 +1,4 @@
 # === IMPORTACIONES BASE ===
-import json
 import unicodedata
 from pathlib import Path
 from datetime import datetime
@@ -13,21 +12,18 @@ import pandas as pd
 import gspread
 from gspread.exceptions import WorksheetNotFound
 
-
 # =========================
 # ⚙️ CONFIG: GOOGLE SHEETS
 # =========================
-# Usa el archivo que indicaste:
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1U3xIrv08284nxZ6XX1H-LmhtuhW7cpnydcYyBc233yU/edit?usp=sharing"
 
-# Conexión por service account desde st.secrets["gcp_service_account"]
 def _get_gspread_client():
     try:
         creds_dict = st.secrets["gcp_service_account"]
         return gspread.service_account_from_dict(creds_dict)
     except Exception as e:
         st.error("No se pudieron cargar las credenciales del Service Account. "
-                 "Agrega gcp_service_account en st.secrets.")
+                 "Agrega gcp_service_account en st.secrets y comparte la hoja con ese correo.")
         raise e
 
 def _open_sheet():
@@ -35,33 +31,78 @@ def _open_sheet():
     try:
         return gc.open_by_url(SPREADSHEET_URL)
     except Exception as e:
-        st.error("No se pudo abrir la hoja de cálculo. Verifica que el Service Account tenga acceso.")
+        st.error("No se pudo abrir la hoja de cálculo. Verifica permisos del Service Account.")
         raise e
 
+# ====== HELPERS ROBUSTOS (parche para hojas vacías) ======
 def _get_ws(name: str, headers: List[str]) -> gspread.Worksheet:
-    """Obtiene (o crea si no existe) una hoja con encabezados."""
+    """
+    Obtiene (o crea) la hoja y garantiza que A1 tenga los encabezados.
+    Si la hoja existe vacía, los escribe.
+    """
     sh = _open_sheet()
     try:
         ws = sh.worksheet(name)
     except WorksheetNotFound:
         ws = sh.add_worksheet(title=name, rows=1000, cols=max(10, len(headers)))
         ws.update("A1", [headers])
-    # Asegura encabezados
+        return ws
+
     current_headers = ws.row_values(1)
-    if current_headers != headers:
+    if not current_headers:
+        ws.update("A1", [headers])
+    elif current_headers != headers:
         ws.resize(rows=max(1000, ws.row_count), cols=max(len(headers), ws.col_count))
         ws.update("A1", [headers])
     return ws
 
+def _overwrite_all(ws: gspread.Worksheet, rows: List[Dict[str, Any]]):
+    """Reescribe todo el contenido manteniendo los encabezados."""
+    headers = ws.row_values(1)
+    if not headers:
+        return
+    values = [headers] + [[str(r.get(h, "")) for h in headers] for r in rows]
+    ws.clear()
+    ws.update("A1", values)
+
+def _read(ws: gspread.Worksheet) -> List[Dict[str, Any]]:
+    """
+    Lee la hoja de forma segura incluso si está vacía.
+    Devuelve [] cuando solo hay encabezados o no hay filas.
+    """
+    try:
+        values = ws.get_all_values()
+    except Exception:
+        return []
+
+    if not values:
+        return []
+    headers = values[0]
+    if not headers:
+        return []
+    data_rows = values[1:]
+    if not data_rows:
+        return []
+
+    out: List[Dict[str, Any]] = []
+    n = len(headers)
+    for row in data_rows:
+        if len(row) < n:
+            row = row + [""] * (n - len(row))
+        elif len(row) > n:
+            row = row[:n]
+        if all((c is None or str(c).strip() == "") for c in row):
+            continue
+        out.append({h: row[i] for i, h in enumerate(headers)})
+    return out
+
 def _next_id(ws: gspread.Worksheet) -> int:
-    """Genera ID incremental (máximo + 1)."""
-    data = ws.get_all_records()
+    data = _read(ws)
     if not data:
         return 1
     try:
         return max(int(r.get("ID", 0)) for r in data) + 1
     except Exception:
-        # Si hay filas corruptas, sigue con conteo por largo
         return len(data) + 1
 
 def _append_dict(ws: gspread.Worksheet, row_dict: Dict[str, Any]):
@@ -69,32 +110,11 @@ def _append_dict(ws: gspread.Worksheet, row_dict: Dict[str, Any]):
     row = [row_dict.get(h, "") for h in headers]
     ws.append_row(row, value_input_option="USER_ENTERED")
 
-def _overwrite_all(ws: gspread.Worksheet, rows: List[Dict[str, Any]]):
-    headers = ws.row_values(1)
-    values = [headers] + [[r.get(h, "") for h in headers] for r in rows]
-    ws.clear()
-    ws.update("A1", values)
-
-def _read(ws: gspread.Worksheet) -> List[Dict[str, Any]]:
-    return ws.get_all_records()
-
-def _update_row_by_id(ws: gspread.Worksheet, row_id: int, new_values: Dict[str, Any]):
-    rows = _read(ws)
-    headers = ws.row_values(1)
-    updated = False
-    for r in rows:
-        if int(r.get("ID", 0)) == int(row_id):
-            r.update(new_values)
-            updated = True
-            break
-    if updated:
-        _overwrite_all(ws, rows)
-
-def _delete_row_by_id(ws: gspread.Worksheet, row_id: int):
-    rows = _read(ws)
-    kept = [r for r in rows if int(r.get("ID", 0)) != int(row_id)]
-    _overwrite_all(ws, kept)
-
+def _to_float(x, default=0.0):
+    try:
+        return float(str(x).replace(",", "").strip())
+    except Exception:
+        return default
 
 # =========================
 # 🧾 Definición de hojas
@@ -113,9 +133,8 @@ def ws_receta_det(): return _get_ws(*WS_RECETA_DET)
 def ws_movimientos(): return _get_ws(*WS_MOVIMIENTOS)
 def ws_ventas(): return _get_ws(*WS_VENTAS)
 
-
 # =========================
-# 🖼️ PDF e imágenes (igual)
+# 🖼️ PDF e imágenes
 # =========================
 from fpdf import FPDF
 from PIL import Image
@@ -240,7 +259,6 @@ def generar_pdf_receta(nombre: str, instrucciones: str, desglose: list, costo_to
 
     return pdf_bytes
 
-
 # ==============================
 # 🎨 ESTILO Y NAVEGACIÓN
 # ==============================
@@ -286,36 +304,28 @@ with st.sidebar:
         }
     )
 
-
 # =============================
 # 🏠 INICIO
 # =============================
 if st.session_state.pagina == "Inicio":
-    st.markdown("## 📊 Sistema de Gestión - Panadería")
+    st.markdown("## 📊 Sistema de Gestión - Panadería ")
     st.markdown("### Selecciona una opción para comenzar:")
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("📦 Productos"):
-            st.session_state.pagina = "Productos"; st.rerun()
+        if st.button("📦 Productos"): st.session_state.pagina = "Productos"; st.rerun()
     with col2:
-        if st.button("🚚 Insumos"):
-            st.session_state.pagina = "Insumos"; st.rerun()
+        if st.button("🚚 Insumos"): st.session_state.pagina = "Insumos"; st.rerun()
     with col3:
-        if st.button("📋 Recetas"):
-            st.session_state.pagina = "Recetas"; st.rerun()
+        if st.button("📋 Recetas"): st.session_state.pagina = "Recetas"; st.rerun()
 
     col4, col5, col6 = st.columns(3)
     with col4:
-        if st.button("🔄 Entradas/Salidas"):
-            st.session_state.pagina = "Entradas/Salidas"; st.rerun()
+        if st.button("🔄 Entradas/Salidas"): st.session_state.pagina = "Entradas/Salidas"; st.rerun()
     with col5:
-        if st.button("💵 Ventas"):
-            st.session_state.pagina = "Ventas"; st.rerun()
+        if st.button("💵 Ventas"): st.session_state.pagina = "Ventas"; st.rerun()
     with col6:
-        if st.button("📈 Balance"):
-            st.session_state.pagina = "Balance"; st.rerun()
-
+        if st.button("📈 Balance"): st.session_state.pagina = "Balance"; st.rerun()
 
 # =============================
 # 📦 PESTAÑA: PRODUCTOS
@@ -352,23 +362,20 @@ if st.session_state.pagina == "Productos":
     productos = _read(ws_p)
     if productos:
         df = pd.DataFrame(productos)
-        df["Ganancia (₡)"] = df["Precio Venta"] - df["Costo"]
+        df["Ganancia (₡)"] = df["Precio Venta"].apply(_to_float) - df["Costo"].apply(_to_float)
 
         def _fmt(x):
-            try:
-                return f"₡{int(x)}" if float(x) == int(float(x)) else f"₡{float(x):,.2f}"
-            except Exception:
+            xv = _to_float(x, None)
+            if xv is None:
                 return x
+            return f"₡{int(xv)}" if xv == int(xv) else f"₡{xv:,.2f}"
 
         for col in ["Precio Venta", "Costo", "Ganancia (₡)"]:
             df[col] = df[col].map(_fmt)
 
         def color_stock(val):
-            try:
-                v = float(val)
-                return 'background-color: red; color: white' if v < 5 else ''
-            except Exception:
-                return ''
+            v = _to_float(val, 0)
+            return 'background-color: red; color: white' if v < 5 else ''
         styled_df = df.style.applymap(color_stock, subset=["Stock"])
         st.dataframe(styled_df, use_container_width=True)
 
@@ -378,7 +385,7 @@ if st.session_state.pagina == "Productos":
             seleccion = st.selectbox("Seleccionar producto por nombre", nombres_disponibles)
 
             prod = next(p for p in productos if p["Nombre"] == seleccion)
-            id_producto = int(prod["ID"])
+            id_producto = int(_to_float(prod["ID"], 0))
 
             with st.form("form_editar_producto"):
                 nuevo_nombre = st.text_input("Nombre", value=prod["Nombre"])
@@ -386,9 +393,9 @@ if st.session_state.pagina == "Productos":
                     "Unidad", ["unidad", "porción", "pieza", "queque", "paquete"],
                     index=["unidad", "porción", "pieza", "queque", "paquete"].index(prod["Unidad"])
                 )
-                nuevo_precio = st.number_input("Precio de venta (₡)", value=float(prod["Precio Venta"]), format="%.2f")
-                nuevo_costo = st.number_input("Costo de elaboración (₡)", value=float(prod["Costo"]), format="%.2f")
-                nuevo_stock = st.number_input("Stock disponible", value=int(prod["Stock"]), step=1)
+                nuevo_precio = st.number_input("Precio de venta (₡)", value=_to_float(prod["Precio Venta"]), format="%.2f")
+                nuevo_costo = st.number_input("Costo de elaboración (₡)", value=_to_float(prod["Costo"]), format="%.2f")
+                nuevo_stock = st.number_input("Stock disponible", value=int(_to_float(prod["Stock"])), step=1)
 
                 col1, col2 = st.columns(2)
                 with col1:
@@ -397,22 +404,28 @@ if st.session_state.pagina == "Productos":
                     eliminar = st.form_submit_button("Eliminar")
 
                 if actualizar:
-                    _update_row_by_id(ws_p, id_producto, {
+                    _update = {
                         "Nombre": nuevo_nombre,
                         "Unidad": nueva_unidad,
                         "Precio Venta": nuevo_precio,
                         "Costo": nuevo_costo,
                         "Stock": int(nuevo_stock)
-                    })
+                    }
+                    rows = _read(ws_p)
+                    for r in rows:
+                        if _to_float(r.get("ID"), -1) == id_producto:
+                            r.update(_update)
+                            break
+                    _overwrite_all(ws_p, rows)
                     st.success("✅ Producto actualizado correctamente.")
                     st.rerun()
                 if eliminar:
-                    _delete_row_by_id(ws_p, id_producto)
+                    rows = [r for r in _read(ws_p) if _to_float(r.get("ID"), -1) != id_producto]
+                    _overwrite_all(ws_p, rows)
                     st.success("🗑️ Producto eliminado correctamente.")
                     st.rerun()
     else:
         st.info("ℹ️ No hay productos registrados todavía.")
-
 
 # =============================
 # 🚚 PESTAÑA: INSUMOS
@@ -473,59 +486,62 @@ if st.session_state.pagina == "Insumos":
         df_i["Unidad Mostrada"] = df_i["Unidad"].map(unidad_legible)
 
         def precio_base(row):
-            try:
-                cu = float(row["Costo Unitario"])
-                return cu / 1000 if row["Unidad"] in ["kg", "l"] else cu
-            except Exception:
-                return row["Costo Unitario"]
+            cu = _to_float(row["Costo Unitario"])
+            return cu / 1000 if row["Unidad"] in ["kg", "l"] else cu
 
         df_i["₡ por unidad base"] = df_i.apply(precio_base, axis=1).map(lambda x: f"₡{float(x):.2f}")
-        df_i["Costo Total (₡)"] = (df_i["Costo Unitario"].astype(float) * df_i["Cantidad"].astype(float)).map(lambda x: f"₡{x:,.2f}")
-        df_i["Costo Unitario"] = df_i["Costo Unitario"].astype(float).map(lambda x: f"₡{x:,.2f}")
+        df_i["Costo Total (₡)"] = (df_i["Costo Unitario"].apply(_to_float) * df_i["Cantidad"].apply(_to_float)).map(lambda x: f"₡{x:,.2f}")
+        df_i["Costo Unitario"] = df_i["Costo Unitario"].apply(_to_float).map(lambda x: f"₡{x:,.2f}")
 
         st.dataframe(df_i[["ID", "Nombre", "Unidad Mostrada", "Costo Unitario", "Cantidad", "Costo Total (₡)", "₡ por unidad base"]],
                      use_container_width=True)
 
         st.markdown("### ✏️ Editar o eliminar un insumo")
         nombres_insumos = [i["Nombre"] for i in insumos]
-        seleccion_i = st.selectbox("Seleccionar insumo por nombre", nombres_insumos)
+        if nombres_insumos:
+            seleccion_i = st.selectbox("Seleccionar insumo por nombre", nombres_insumos)
 
-        insumo_sel = next(i for i in insumos if i["Nombre"] == seleccion_i)
-        id_insumo = int(insumo_sel["ID"])
-        unidad_visible_original = [k for k, v in unidades_dict.items() if v == insumo_sel["Unidad"]][0]
+            insumo_sel = next(i for i in insumos if i["Nombre"] == seleccion_i)
+            id_insumo = int(_to_float(insumo_sel["ID"]))
+            unidad_visible_original = [k for k, v in unidades_dict.items() if v == insumo_sel["Unidad"]][0]
 
-        with st.form("form_editar_insumo"):
-            nuevo_nombre_i = st.text_input("Nombre", value=insumo_sel["Nombre"])
-            nueva_unidad_visible = st.selectbox("Unidad", list(unidades_dict.keys()),
-                                                index=list(unidades_dict.keys()).index(unidad_visible_original))
-            nueva_unidad = unidades_dict[nueva_unidad_visible]
-            nueva_cantidad = st.number_input("Cantidad adquirida", value=float(insumo_sel["Cantidad"]))
-            costo_total_original = float(insumo_sel["Costo Unitario"]) * float(insumo_sel["Cantidad"])
-            nuevo_costo_total = st.number_input("Costo total (₡)", value=float(costo_total_original), format="%.2f")
+            with st.form("form_editar_insumo"):
+                nuevo_nombre_i = st.text_input("Nombre", value=insumo_sel["Nombre"])
+                nueva_unidad_visible = st.selectbox("Unidad", list(unidades_dict.keys()),
+                                                    index=list(unidades_dict.keys()).index(unidad_visible_original))
+                nueva_unidad = unidades_dict[nueva_unidad_visible]
+                nueva_cantidad = st.number_input("Cantidad adquirida", value=_to_float(insumo_sel["Cantidad"]))
+                costo_total_original = _to_float(insumo_sel["Costo Unitario"]) * _to_float(insumo_sel["Cantidad"])
+                nuevo_costo_total = st.number_input("Costo total (₡)", value=float(costo_total_original), format="%.2f")
 
-            col1, col2 = st.columns(2)
-            with col1:
-                actualizar_i = st.form_submit_button("Actualizar")
-            with col2:
-                eliminar_i = st.form_submit_button("Eliminar")
+                col1, col2 = st.columns(2)
+                with col1:
+                    actualizar_i = st.form_submit_button("Actualizar")
+                with col2:
+                    eliminar_i = st.form_submit_button("Eliminar")
 
-            if actualizar_i and nueva_cantidad > 0:
-                nuevo_costo_unitario = nuevo_costo_total / nueva_cantidad
-                _update_row_by_id(ws_i, id_insumo, {
-                    "Nombre": nuevo_nombre_i,
-                    "Unidad": nueva_unidad,
-                    "Costo Unitario": nuevo_costo_unitario,
-                    "Cantidad": nueva_cantidad
-                })
-                st.success("✅ Insumo actualizado correctamente.")
-                st.rerun()
-            if eliminar_i:
-                _delete_row_by_id(ws_i, id_insumo)
-                st.success("🗑️ Insumo eliminado correctamente.")
-                st.rerun()
+                if actualizar_i and nueva_cantidad > 0:
+                    nuevo_costo_unitario = nuevo_costo_total / nueva_cantidad
+                    rows = _read(ws_i)
+                    for r in rows:
+                        if _to_float(r.get("ID"), -1) == id_insumo:
+                            r.update({
+                                "Nombre": nuevo_nombre_i,
+                                "Unidad": nueva_unidad,
+                                "Costo Unitario": nuevo_costo_unitario,
+                                "Cantidad": nueva_cantidad
+                            })
+                            break
+                    _overwrite_all(ws_i, rows)
+                    st.success("✅ Insumo actualizado correctamente.")
+                    st.rerun()
+                if eliminar_i:
+                    rows = [r for r in _read(ws_i) if _to_float(r.get("ID"), -1) != id_insumo]
+                    _overwrite_all(ws_i, rows)
+                    st.success("🗑️ Insumo eliminado correctamente.")
+                    st.rerun()
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
-
 
 # =============================
 # 📋 PESTAÑA: RECETAS
@@ -550,7 +566,7 @@ if st.session_state.pagina == "Recetas":
         else:
             st.markdown("### 🧺 Seleccionar ingredientes:")
             for insumo in insumos:
-                insumo_id = int(insumo["ID"])
+                insumo_id = int(_to_float(insumo["ID"]))
                 nombre = insumo["Nombre"]
                 unidad = insumo["Unidad"]
                 cantidad = st.number_input(f"{nombre} ({unidad})", min_value=0.0, step=0.1, key=f"nuevo_{insumo_id}")
@@ -590,23 +606,23 @@ if st.session_state.pagina == "Recetas":
 
     if recetas:
         for receta in recetas:
-            receta_id = int(receta["ID"])
+            receta_id = int(_to_float(receta["ID"]))
             nombre = receta["Nombre"]
             instrucciones = receta.get("Instrucciones", "")
 
-            detalles = [d for d in detalles_all if int(d["RecetaID"]) == receta_id]
+            detalles = [d for d in detalles_all if _to_float(d["RecetaID"]) == receta_id]
 
             desglose = []
             costo_total = 0.0
             for det in detalles:
                 nombre_insumo = det["NombreInsumo"]
-                cantidad = float(det["Cantidad"])
+                cantidad = _to_float(det["Cantidad"])
                 unidad = det["Unidad"]
 
                 insumo_info = insumos_db.get(nombre_insumo)
                 if not insumo_info:
                     continue
-                costo_unitario = float(insumo_info["Costo Unitario"])
+                costo_unitario = _to_float(insumo_info["Costo Unitario"])
                 unidad_insumo = insumo_info["Unidad"]
 
                 if unidad_insumo in ["kg", "l"]:
@@ -656,9 +672,10 @@ if st.session_state.pagina == "Recetas":
                 with col1:
                     if st.button(f"🗑️ Eliminar receta", key=f"eliminar_{receta_id}"):
                         # Elimina maestro
-                        _delete_row_by_id(ws_r, receta_id)
+                        rows_r = [r for r in _read(ws_r) if _to_float(r["ID"]) != receta_id]
+                        _overwrite_all(ws_r, rows_r)
                         # Elimina detalle
-                        det_kept = [d for d in detalles_all if int(d["RecetaID"]) != receta_id]
+                        det_kept = [d for d in _read(ws_rd) if _to_float(d["RecetaID"]) != receta_id]
                         _overwrite_all(ws_rd, det_kept)
                         # Borra imagen si existe
                         base = Path("imagenes_recetas")
@@ -672,7 +689,6 @@ if st.session_state.pagina == "Recetas":
                     if st.button("✏️ Editar receta", key=f"editar_{receta_id}"):
                         st.session_state[f"editando_{receta_id}"] = True
 
-            # Edición
             if st.session_state.get(f"editando_{receta_id}", False):
                 with st.form(f"form_edicion_{receta_id}"):
                     nuevo_nombre = st.text_input("📛 Nuevo nombre", value=nombre, key=f"nombre_{receta_id}")
@@ -683,7 +699,7 @@ if st.session_state.pagina == "Recetas":
                     for insumo in insumos_db_list:
                         insumo_nombre = insumo["Nombre"]
                         unidad = insumo["Unidad"]
-                        actual = next((float(d["Cantidad"]) for d in detalles if d["NombreInsumo"] == insumo_nombre), 0.0)
+                        actual = next((_to_float(d["Cantidad"]) for d in detalles if d["NombreInsumo"] == insumo_nombre), 0.0)
                         cantidad = st.number_input(
                             f"{insumo_nombre} ({unidad})",
                             value=float(actual),
@@ -696,12 +712,19 @@ if st.session_state.pagina == "Recetas":
                     guardar = st.form_submit_button("💾 Guardar cambios")
                     if guardar:
                         # Actualiza maestro
-                        _update_row_by_id(ws_r, receta_id, {"Nombre": nuevo_nombre, "Instrucciones": nuevas_instrucciones})
-                        # Reemplaza detalle de esa receta
-                        det_otros = [d for d in _read(ws_rd) if int(d["RecetaID"]) != receta_id]
+                        rows_r = _read(ws_r)
+                        for r in rows_r:
+                            if _to_float(r["ID"]) == receta_id:
+                                r["Nombre"] = nuevo_nombre
+                                r["Instrucciones"] = nuevas_instrucciones
+                                break
+                        _overwrite_all(ws_r, rows_r)
+
+                        # Reemplaza detalle
+                        det_otros = [d for d in _read(ws_rd) if _to_float(d["RecetaID"]) != receta_id]
                         for nom_i, cant, uni in nuevos_insumos:
                             det_otros.append({
-                                "ID": None,  # se re-enumerará
+                                "ID": "",  # se re-enumerará
                                 "RecetaID": receta_id,
                                 "NombreInsumo": nom_i,
                                 "Cantidad": cant,
@@ -710,7 +733,7 @@ if st.session_state.pagina == "Recetas":
                         # Reasignar IDs de detalle
                         rows_final = []
                         for r in det_otros:
-                            if r.get("ID") in (None, "", 0):
+                            if not str(r.get("ID", "")).strip():
                                 r["ID"] = len(rows_final) + 1
                             rows_final.append(r)
                         _overwrite_all(ws_receta_det(), rows_final)
@@ -737,7 +760,6 @@ if st.session_state.pagina == "Recetas":
                         st.rerun()
     else:
         st.info("ℹ️ No hay recetas registradas todavía.")
-
 
 # =============================
 # 📤 PESTAÑA: ENTRADAS/SALIDAS
@@ -766,11 +788,10 @@ if st.session_state.pagina == "Entradas/Salidas":
 
     index = nombres_insumos.index(insumo_elegido)
     insumo_sel = insumos[index]
-    insumo_id = int(insumo_sel["ID"])
+    insumo_id = int(_to_float(insumo_sel["ID"]))
     nombre = insumo_sel["Nombre"]
     unidad = insumo_sel["Unidad"]
-    costo_unitario = float(insumo_sel["Costo Unitario"])
-    cantidad_actual = float(insumo_sel["Cantidad"])
+    cantidad_actual = _to_float(insumo_sel["Cantidad"])
     unidad_visible = unidad_legible.get(unidad, unidad)
 
     st.markdown(
@@ -797,9 +818,14 @@ if st.session_state.pagina == "Entradas/Salidas":
                 "FechaHora": fecha_hora,
                 "Motivo": motivo
             })
-            # Actualiza stock del insumo en la hoja Insumos
+            # Actualiza stock del insumo
             nuevo_stock = cantidad_actual + cantidad if tipo_movimiento == "Entrada" else cantidad_actual - cantidad
-            _update_row_by_id(ws_i, insumo_id, {"Cantidad": nuevo_stock})
+            rows = _read(ws_i)
+            for r in rows:
+                if _to_float(r.get("ID")) == insumo_id:
+                    r["Cantidad"] = nuevo_stock
+                    break
+            _overwrite_all(ws_i, rows)
             st.success("✅ Movimiento registrado correctamente.")
             st.rerun()
 
@@ -810,8 +836,8 @@ if st.session_state.pagina == "Entradas/Salidas":
         df_hist = pd.DataFrame(historial)
         if not df_hist.empty:
             df_hist["Fecha y Hora"] = pd.to_datetime(df_hist["FechaHora"]).dt.strftime("%d/%m/%Y")
-            df_hist["Cantidad"] = df_hist["Cantidad"].astype(float).apply(lambda x: f"{x:.2f}")
-            df_hist = df_hist.rename(columns={"Tipo": "Tipo", "InsumoNombre": "Insumo"})
+            df_hist["Cantidad"] = df_hist["Cantidad"].apply(_to_float).apply(lambda x: f"{x:.2f}")
+            df_hist = df_hist.rename(columns={"InsumoNombre": "Insumo"})
             df_hist = df_hist[["Insumo", "Tipo", "Cantidad", "Fecha y Hora", "Motivo"]]
 
             def colorear_tipo(val):
@@ -822,18 +848,17 @@ if st.session_state.pagina == "Entradas/Salidas":
 
     # Stock bajo
     st.markdown("### 🚨 Insumos con stock bajo")
-    bajo_stock = [i for i in _read(ws_i) if float(i["Cantidad"]) < 3]
+    bajo_stock = [i for i in _read(ws_i) if _to_float(i["Cantidad"]) < 3]
     if bajo_stock:
         df_bajo = pd.DataFrame(bajo_stock)
         df_bajo["Unidad"] = df_bajo["Unidad"].map(unidad_legible)
-        df_bajo["₡ x unidad"] = df_bajo["Costo Unitario"].astype(float).apply(lambda x: f"₡{x:,.2f}")
-        df_bajo["Cantidad disponible"] = df_bajo["Cantidad"].astype(float).apply(lambda x: f"{x:.2f}")
+        df_bajo["₡ x unidad"] = df_bajo["Costo Unitario"].apply(_to_float).apply(lambda x: f"₡{x:,.2f}")
+        df_bajo["Cantidad disponible"] = df_bajo["Cantidad"].apply(_to_float).apply(lambda x: f"{x:.2f}")
         df_bajo = df_bajo.rename(columns={"Nombre": "Insumo"})
         st.warning("⚠️ Tienes insumos con menos de 3 unidades.")
         st.dataframe(df_bajo[["Insumo", "Unidad", "₡ x unidad", "Cantidad disponible"]], use_container_width=True)
     else:
         st.success("✅ Todos los insumos tienen suficiente stock.")
-
 
 # =============================
 # 💰 PESTAÑA: VENTAS
@@ -852,12 +877,12 @@ if st.session_state.pagina == "Ventas":
 
         index = nombres_productos.index(producto_elegido)
         prod = productos[index]
-        id_producto = int(prod["ID"])
+        id_producto = int(_to_float(prod["ID"]))
         nombre = prod["Nombre"]
         unidad = prod["Unidad"]
-        precio_venta = float(prod["Precio Venta"])
-        costo_unitario = float(prod["Costo"])
-        stock_disponible = float(prod["Stock"])
+        precio_venta = _to_float(prod["Precio Venta"])
+        costo_unitario = _to_float(prod["Costo"])
+        stock_disponible = _to_float(prod["Stock"])
 
         st.markdown(f"**💵 Precio de venta:** ₡{precio_venta:,.2f}")
         st.markdown(f"**🧾 Costo de elaboración:** ₡{costo_unitario:,.2f}")
@@ -889,7 +914,12 @@ if st.session_state.pagina == "Ventas":
                 })
 
                 # Actualiza stock del producto
-                _update_row_by_id(ws_p, id_producto, {"Stock": stock_disponible - cantidad_vendida})
+                rows = _read(ws_p)
+                for r in rows:
+                    if _to_float(r.get("ID")) == id_producto:
+                        r["Stock"] = stock_disponible - cantidad_vendida
+                        break
+                _overwrite_all(ws_p, rows)
 
                 st.success("✅ Venta registrada correctamente.")
                 st.rerun()
@@ -899,65 +929,69 @@ if st.session_state.pagina == "Ventas":
         st.markdown("### 📋 Historial de ventas")
         df_ventas = pd.DataFrame(ventas)
         if not df_ventas.empty:
-            df_ventas["Cantidad"] = df_ventas["Cantidad"].astype(float).apply(lambda x: f"{x:.2f}")
+            df_ventas["Cantidad"] = df_ventas["Cantidad"].apply(_to_float).apply(lambda x: f"{x:.2f}")
             for c in ["Ingreso (₡)", "Costo (₡)", "Ganancia (₡)"]:
-                df_ventas[c] = df_ventas[c].astype(float).apply(lambda x: f"₡{x:,.2f}")
+                df_ventas[c] = df_ventas[c].apply(_to_float).apply(lambda x: f"₡{x:,.2f}")
             st.dataframe(df_ventas.drop(columns=["ID"]), use_container_width=True)
 
-            total_ingresos = sum(float(v["Ingreso (₡)"]) for v in ventas)
-            total_ganancias = sum(float(v["Ganancia (₡)"]) for v in ventas)
+            total_ingresos = sum(_to_float(v["Ingreso (₡)"]) for v in ventas)
+            total_ganancias = sum(_to_float(v["Ganancia (₡)"]) for v in ventas)
 
             st.markdown(f"**💵 Total ingresos:** ₡{total_ingresos:,.2f}")
             st.markdown(f"**📈 Total ganancias:** ₡{total_ganancias:,.2f}")
 
             # Producto estrella
             df_crudo = pd.DataFrame(ventas)
-            df_crudo["Cantidad"] = df_crudo["Cantidad"].astype(float)
-            producto_estrella = df_crudo.groupby("Producto")["Cantidad"].sum().idxmax()
-            cantidad_estrella = df_crudo.groupby("Producto")["Cantidad"].sum().max()
-            st.success(f"🌟 Producto estrella: **{producto_estrella}** con **{cantidad_estrella:.2f}** unidades vendidas")
+            df_crudo["Cantidad"] = df_crudo["Cantidad"].apply(_to_float)
+            if not df_crudo.empty:
+                producto_estrella = df_crudo.groupby("Producto")["Cantidad"].sum().idxmax()
+                cantidad_estrella = df_crudo.groupby("Producto")["Cantidad"].sum().max()
+                st.success(f"🌟 Producto estrella: **{producto_estrella}** con **{cantidad_estrella:.2f}** unidades vendidas")
 
             # Editar/eliminar
             st.markdown("### ✏️ Editar o eliminar una venta")
-            ids_ventas = [f"{int(v['ID'])} - {v['Producto']} ({float(v['Cantidad']):.2f})" for v in ventas]
+            ids_ventas = [f"{int(_to_float(v['ID']))} - {v['Producto']} ({_to_float(v['Cantidad']):.2f})" for v in ventas]
             seleccion_id = st.selectbox("Selecciona una venta", ids_ventas)
 
             venta_id = int(seleccion_id.split(" - ")[0])
-            venta = next(v for v in ventas if int(v["ID"]) == venta_id)
+            venta = next(v for v in ventas if int(_to_float(v["ID"])) == venta_id)
 
-            nueva_cantidad = st.number_input("Nueva cantidad vendida", min_value=0.1, value=float(venta["Cantidad"]), step=0.1)
+            nueva_cantidad = st.number_input("Nueva cantidad vendida", min_value=0.1, value=_to_float(venta["Cantidad"]), step=0.1)
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("Actualizar venta"):
-                    # Recalcula con precio/costo actuales del producto
+                    # Recalcula con precio/costo actuales del producto (si existe)
                     prod_match = next((p for p in _read(ws_productos()) if p["Nombre"] == venta["Producto"]), None)
                     if prod_match:
-                        precio_venta = float(prod_match["Precio Venta"])
-                        costo_unitario = float(prod_match["Costo"])
+                        precio_venta = _to_float(prod_match["Precio Venta"])
+                        costo_unitario = _to_float(prod_match["Costo"])
                     else:
-                        precio_venta = float(venta["Ingreso (₡)"]) / float(venta["Cantidad"])
-                        costo_unitario = float(venta["Costo (₡)"]) / float(venta["Cantidad"])
+                        precio_venta = _to_float(venta["Ingreso (₡)"]) / max(_to_float(venta["Cantidad"]), 1e-9)
+                        costo_unitario = _to_float(venta["Costo (₡)"]) / max(_to_float(venta["Cantidad"]), 1e-9)
 
                     nuevo_ingreso = round(nueva_cantidad * precio_venta, 2)
                     nuevo_costo = round(nueva_cantidad * costo_unitario, 2)
                     nueva_ganancia = round(nuevo_ingreso - nuevo_costo, 2)
 
-                    _update_row_by_id(ws_v, venta_id, {
-                        "Cantidad": nueva_cantidad,
-                        "Ingreso (₡)": nuevo_ingreso,
-                        "Costo (₡)": nuevo_costo,
-                        "Ganancia (₡)": nueva_ganancia
-                    })
+                    rows_v = _read(ws_v)
+                    for r in rows_v:
+                        if int(_to_float(r["ID"])) == venta_id:
+                            r["Cantidad"] = nueva_cantidad
+                            r["Ingreso (₡)"] = nuevo_ingreso
+                            r["Costo (₡)"] = nuevo_costo
+                            r["Ganancia (₡)"] = nueva_ganancia
+                            break
+                    _overwrite_all(ws_v, rows_v)
                     st.success("✅ Venta actualizada correctamente.")
                     st.rerun()
             with col2:
                 if st.button("Eliminar venta"):
-                    _delete_row_by_id(ws_v, venta_id)
+                    rows_v = [r for r in _read(ws_v) if int(_to_float(r["ID"])) != venta_id]
+                    _overwrite_all(ws_v, rows_v)
                     st.success("🗑️ Venta eliminada correctamente.")
                     st.rerun()
     else:
         st.info("ℹ️ Aún no hay ventas registradas.")
-
 
 # =============================
 # 📊 PESTAÑA: BALANCE
@@ -985,11 +1019,11 @@ if st.session_state.pagina == "Balance":
             "unidad": "unidades"
         }
         df_insumos["Unidad"] = df_insumos["Unidad"].map(unidad_legible)
-        df_insumos["Total (₡)"] = df_insumos["Costo Unitario"].astype(float) * df_insumos["Cantidad"].astype(float)
-        df_insumos["Costo Unitario"] = df_insumos["Costo Unitario"].astype(float).apply(lambda x: f"₡{x:,.2f}")
-        df_insumos["Total (₡)"] = df_insumos["Total (₡)"].astype(float).apply(lambda x: f"₡{x:,.2f}")
+        df_insumos["Total (₡)"] = df_insumos["Costo Unitario"].apply(_to_float) * df_insumos["Cantidad"].apply(_to_float)
+        df_insumos["Costo Unitario"] = df_insumos["Costo Unitario"].apply(_to_float).apply(lambda x: f"₡{x:,.2f}")
+        df_insumos["Total (₡)"] = df_insumos["Total (₡)"].apply(_to_float).apply(lambda x: f"₡{x:,.2f}")
 
-        total_inventario_num = sum(float(i["Costo Unitario"]) * float(i["Cantidad"]) for i in insumos)
+        total_inventario_num = sum(_to_float(i["Costo Unitario"]) * _to_float(i["Cantidad"]) for i in insumos)
 
         st.markdown("### 📦 Valor del inventario de insumos")
         st.dataframe(df_insumos[["Nombre", "Unidad", "Cantidad", "Costo Unitario", "Total (₡)"]], use_container_width=True)
@@ -1014,13 +1048,13 @@ if st.session_state.pagina == "Balance":
             ]
 
             if not df_ventas_filtrado.empty:
-                total_ingresos = df_ventas_filtrado["Ingreso (₡)"].astype(float).sum()
-                total_costos = df_ventas_filtrado["Costo (₡)"].astype(float).sum()
-                total_ganancia = df_ventas_filtrado["Ganancia (₡)"].astype(float).sum()
+                total_ingresos = df_ventas_filtrado["Ingreso (₡)"].apply(_to_float).sum()
+                total_costos = df_ventas_filtrado["Costo (₡)"].apply(_to_float).sum()
+                total_ganancia = df_ventas_filtrado["Ganancia (₡)"].apply(_to_float).sum()
 
-                df_ventas_filtrado["Cantidad"] = df_ventas_filtrado["Cantidad"].astype(float).apply(lambda x: f"{x:.2f}")
+                df_ventas_filtrado["Cantidad"] = df_ventas_filtrado["Cantidad"].apply(_to_float).apply(lambda x: f"{x:.2f}")
                 for c in ["Ingreso (₡)", "Costo (₡)", "Ganancia (₡)"]:
-                    df_ventas_filtrado[c] = df_ventas_filtrado[c].astype(float).apply(lambda x: f"₡{x:,.2f}")
+                    df_ventas_filtrado[c] = df_ventas_filtrado[c].apply(_to_float).apply(lambda x: f"₡{x:,.2f}")
                 df_ventas_filtrado["Fecha"] = df_ventas_filtrado["Fecha"].dt.strftime("%d/%m/%Y")
 
                 st.dataframe(df_ventas_filtrado.drop(columns=["ID"]), use_container_width=True)
