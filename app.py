@@ -9,8 +9,12 @@ from streamlit_option_menu import option_menu
 import pandas as pd
 
 # === Google Sheets ===
-import gspread
-from gspread.exceptions import WorksheetNotFound
+try:
+    import gspread
+    from gspread.exceptions import WorksheetNotFound
+except Exception:
+    st.error("Falta el paquete **gspread**. Agrega `gspread` y `google-auth` a tu requirements.txt y vuelve a desplegar.")
+    st.stop()
 
 # =========================
 # ⚙️ CONFIG: GOOGLE SHEETS
@@ -18,23 +22,35 @@ from gspread.exceptions import WorksheetNotFound
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1U3xIrv08284nxZ6XX1H-LmhtuhW7cpnydcYyBc233yU/edit?usp=sharing"
 
 def _get_gspread_client():
+    if "gcp_service_account" not in st.secrets:
+        st.error(
+            "No se encontraron credenciales en **st.secrets['gcp_service_account']**.\n\n"
+            "👉 Sube el JSON del Service Account a *Secrets* y **comparte** el Google Sheet con ese correo."
+        )
+        st.stop()
     try:
         creds_dict = st.secrets["gcp_service_account"]
         return gspread.service_account_from_dict(creds_dict)
     except Exception as e:
-        st.error("No se pudieron cargar las credenciales del Service Account. "
-                 "Agrega gcp_service_account en st.secrets y comparte la hoja con ese correo.")
-        raise e
+        st.error("No se pudieron cargar las credenciales del Service Account. Revisa el JSON en *Secrets*.")
+        st.stop()
 
 def _open_sheet():
+    """Abre el spreadsheet o detiene la app con un mensaje claro si no hay permisos."""
     gc = _get_gspread_client()
     try:
         return gc.open_by_url(SPREADSHEET_URL)
-    except Exception as e:
-        st.error("No se pudo abrir la hoja de cálculo. Verifica permisos del Service Account.")
-        raise e
+    except Exception:
+        st.error(
+            "⚠️ **No se pudo abrir la hoja de cálculo**.\n\n"
+            "Posibles causas:\n"
+            "1) El **Service Account no tiene acceso** (comparte el archivo con su `client_email`).\n"
+            "2) La **URL del Spreadsheet** no es válida.\n\n"
+            "Solución: abre el Sheet, pulsa **Compartir** y añade el correo del Service Account como Editor."
+        )
+        st.stop()
 
-# ====== HELPERS ROBUSTOS (parche para hojas vacías) ======
+# ====== HELPERS ROBUSTOS (soportan hojas vacías) ======
 def _get_ws(name: str, headers: List[str]) -> gspread.Worksheet:
     """
     Obtiene (o crea) la hoja y garantiza que A1 tenga los encabezados.
@@ -101,7 +117,7 @@ def _next_id(ws: gspread.Worksheet) -> int:
     if not data:
         return 1
     try:
-        return max(int(r.get("ID", 0)) for r in data) + 1
+        return max(int(float(r.get("ID", 0))) for r in data) + 1
     except Exception:
         return len(data) + 1
 
@@ -121,6 +137,7 @@ def _to_float(x, default=0.0):
 # =========================
 WS_PRODUCTOS = ("Productos", ["ID", "Nombre", "Unidad", "Precio Venta", "Costo", "Stock"])
 WS_INSUMOS = ("Insumos", ["ID", "Nombre", "Unidad", "Costo Unitario", "Cantidad"])
+# Conservamos los nombres internos de hojas
 WS_RECETAS = ("Recetas", ["ID", "Nombre", "Instrucciones"])
 WS_RECETA_DET = ("Receta_Detalle", ["ID", "RecetaID", "NombreInsumo", "Cantidad", "Unidad"])
 WS_MOVIMIENTOS = ("Movimientos", ["ID", "InsumoID", "InsumoNombre", "Tipo", "Cantidad", "FechaHora", "Motivo"])
@@ -267,6 +284,8 @@ st.set_page_config(page_title="Panadería Moderna", layout="wide")
 if "pagina" not in st.session_state:
     st.session_state.pagina = "Inicio"
 
+NOMBRE_RECETAS_UI = "Calculadora de gastos y generador de recetas"
+
 st.markdown("""
     <style>
         body, .main { background-color: #121212; color: white; }
@@ -292,10 +311,10 @@ st.markdown("""
 with st.sidebar:
     st.session_state.pagina = option_menu(
         "Navegación",
-        ["Inicio", "Productos", "Insumos", "Recetas", "Entradas/Salidas", "Ventas", "Balance"],
+        ["Inicio", "Productos", "Insumos", NOMBRE_RECETAS_UI, "Entradas/Salidas", "Ventas", "Balance"],
         icons=["house", "archive", "truck", "file-earmark-text", "arrow-left-right", "wallet", "graph-up"],
         menu_icon="list",
-        default_index=["Inicio", "Productos", "Insumos", "Recetas", "Entradas/Salidas", "Ventas", "Balance"].index(st.session_state.pagina),
+        default_index=["Inicio", "Productos", "Insumos", NOMBRE_RECETAS_UI, "Entradas/Salidas", "Ventas", "Balance"].index(st.session_state.pagina),
         styles={
             "container": {"padding": "5px", "background-color": "#121212"},
             "icon": {"color": "#00ffcc", "font-size": "20px"},
@@ -317,7 +336,7 @@ if st.session_state.pagina == "Inicio":
     with col2:
         if st.button("🚚 Insumos"): st.session_state.pagina = "Insumos"; st.rerun()
     with col3:
-        if st.button("📋 Recetas"): st.session_state.pagina = "Recetas"; st.rerun()
+        if st.button("🧮 " + NOMBRE_RECETAS_UI): st.session_state.pagina = NOMBRE_RECETAS_UI; st.rerun()
 
     col4, col5, col6 = st.columns(3)
     with col4:
@@ -543,11 +562,11 @@ if st.session_state.pagina == "Insumos":
     else:
         st.info("ℹ️ No hay insumos registrados todavía.")
 
-# =============================
-# 📋 PESTAÑA: RECETAS
-# =============================
-if st.session_state.pagina == "Recetas":
-    st.subheader("📋 Gestión de Recetas")
+# ==============================================================
+# 🧮 PESTAÑA: CALCULADORA DE GASTOS Y GENERADOR DE RECETAS
+# ==============================================================
+if st.session_state.pagina == NOMBRE_RECETAS_UI:
+    st.subheader("🧮 Calculadora de gastos y generador de recetas")
     ws_r = ws_recetas()
     ws_rd = ws_receta_det()
     ws_i = ws_insumos()
@@ -1011,12 +1030,8 @@ if st.session_state.pagina == "Balance":
     if insumos:
         df_insumos = pd.DataFrame(insumos)
         unidad_legible = {
-            "kg": "kilogramos",
-            "g": "gramos",
-            "l": "litros",
-            "ml": "mililitros",
-            "barra": "barras",
-            "unidad": "unidades"
+            "kg": "kilogramos", "g": "gramos", "l": "litros",
+            "ml": "mililitros", "barra": "barras", "unidad": "unidades"
         }
         df_insumos["Unidad"] = df_insumos["Unidad"].map(unidad_legible)
         df_insumos["Total (₡)"] = df_insumos["Costo Unitario"].apply(_to_float) * df_insumos["Cantidad"].apply(_to_float)
@@ -1073,9 +1088,6 @@ if st.session_state.pagina == "Balance":
                 st.info("ℹ️ No hay ventas registradas en el rango seleccionado.")
     else:
         st.info("ℹ️ No hay ventas registradas.")
-
-
-
 
 
 
